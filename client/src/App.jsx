@@ -7,7 +7,9 @@ import { ProtectedRoute, GuestRoute } from './components/router/ProtectedRoute';
 import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
+import DashboardPage from './pages/DashboardPage';
 import NotFoundPage from './pages/NotFoundPage';
+
 
 function App() {
   return (
@@ -56,9 +58,17 @@ function App() {
           />
 
           {/* Protected Routes — require auth */}
-          {/* Dashboard, Upload, Transfer etc. will be added in subsequent phases */}
+          <Route
+            path="/dashboard"
+            element={
+              <ProtectedRoute>
+                <DashboardPage />
+              </ProtectedRoute>
+            }
+          />
 
           {/* 404 */}
+
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </AuthProvider>

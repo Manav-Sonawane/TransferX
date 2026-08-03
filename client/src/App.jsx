@@ -8,6 +8,7 @@ import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
+import UploadPage from './pages/UploadPage';
 import NotFoundPage from './pages/NotFoundPage';
 
 
@@ -56,6 +57,8 @@ function App() {
               </GuestRoute>
             }
           />
+
+          <Route path="/upload" element={<UploadPage />} />
 
           {/* Protected Routes — require auth */}
           <Route

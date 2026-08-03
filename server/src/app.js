@@ -7,6 +7,8 @@ const cookieParser = require('cookie-parser');
 const { errorHandler } = require('./middlewares/error.middleware');
 const authRoutes = require('./routes/auth.routes');
 
+const fileRoutes = require('./routes/file.routes');
+
 const app = express();
 
 // ─── Security Headers ─────────────────────────
@@ -23,8 +25,8 @@ app.use(
 );
 
 // ─── Body Parsers ─────────────────────────────
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.json({ limit: '100mb' }));
+app.use(express.urlencoded({ extended: true, limit: '100mb' }));
 
 // ─── Cookie Parser ────────────────────────────
 app.use(cookieParser());
@@ -50,6 +52,7 @@ app.get('/api/health', (req, res) => {
 
 // ─── API Routes ───────────────────────────────
 app.use('/api/auth', authRoutes);
+app.use('/api/files', fileRoutes);
 
 // ─── 404 Handler ─────────────────────────────
 app.use((req, res) => {

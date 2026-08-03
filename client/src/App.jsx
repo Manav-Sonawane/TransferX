@@ -9,6 +9,8 @@ import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import DashboardPage from './pages/DashboardPage';
 import UploadPage from './pages/UploadPage';
+import AccessPage from './pages/AccessPage';
+import DownloadPage from './pages/DownloadPage';
 import NotFoundPage from './pages/NotFoundPage';
 
 
@@ -59,6 +61,9 @@ function App() {
           />
 
           <Route path="/upload" element={<UploadPage />} />
+          <Route path="/access" element={<AccessPage />} />
+          <Route path="/share/:code" element={<DownloadPage />} />
+
 
           {/* Protected Routes — require auth */}
           <Route

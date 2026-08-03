@@ -43,7 +43,6 @@ const shareSchema = new mongoose.Schema(
 );
 
 // ─── Indexes ──────────────────────────────────
-shareSchema.index({ shareCode: 1 });
 shareSchema.index({ expiry: 1 });
 
 // ─── Pre-save: Hash password ──────────────────

@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const cloudinary = require('../config/cloudinary');
+
 
 const fileSchema = new mongoose.Schema(
     {
@@ -69,16 +69,7 @@ const fileSchema = new mongoose.Schema(
     }
 );
 
-// ─── Virtuals ──────────────────────────────────
-// Dynamically generate the Cloudinary URL using the SDK and force download via flags
-fileSchema.virtual('storageUrl').get(function () {
-    return cloudinary.url(this.publicId, {
-        resource_type: this.resourceType,
-        format: this.resourceType === 'raw' ? null : this.format,
-        secure: true,
-        flags: 'attachment',
-    });
-});
+
 
 // For backwards compatibility
 fileSchema.virtual('fileNameLegacy').get(function () {

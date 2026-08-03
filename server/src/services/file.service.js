@@ -24,6 +24,12 @@ const uploadFile = async ({ user, file, expiryDays = 7, visibility = 'public' })
     const cleanFileName = parsedPath.name;
 
     // 1. Upload to Cloudinary first
+    console.log({
+        originalname: file.originalname,
+        mimetype: file.mimetype,
+        size: file.size,
+        bufferLength: file.buffer.length
+    });
     let uploadResult;
     try {
         uploadResult = await uploadToCloudinary(buffer, originalname, mimetype);

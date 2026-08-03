@@ -26,12 +26,12 @@ const uploadToCloudinary = (fileBuffer, originalName, mimeType, folder = 'transf
         const parsed = path.parse(originalName);
         const cleanName = parsed.name.replace(/[^a-zA-Z0-9-_]/g, '_');
         const ext = parsed.ext;
-        
+
         const resourceType = getResourceType(mimeType);
-        
+
         // Generate a collision-resistant unique public_id suffix
         const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-        
+
         // CRITICAL: Raw resource types require the extension to be explicitly present in the public_id
         const publicId = resourceType === 'raw'
             ? `${cleanName}_${uniqueSuffix}${ext}`
@@ -43,6 +43,8 @@ const uploadToCloudinary = (fileBuffer, originalName, mimeType, folder = 'transf
                 resource_type: resourceType,
                 public_id: publicId,
                 overwrite: false,
+                filename_override: parsed.name,
+                use_filename: true,
             },
             (error, result) => {
                 if (error) return reject(error);
@@ -68,8 +70,8 @@ const deleteFromCloudinary = async (publicId, resourceType) => {
     }
 };
 
-module.exports = { 
-    uploadToCloudinary, 
+module.exports = {
+    uploadToCloudinary,
     deleteFromCloudinary,
     getResourceType
 };

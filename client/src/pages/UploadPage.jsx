@@ -2,6 +2,8 @@ import { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { UploadCloud, File as FileIcon, X, CheckCircle, AlertCircle, Clock, Shield } from 'lucide-react';
 import { fileService } from '../services/file.service';
+import { shareService } from '../services/share.service';
+import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
 
 const UploadPage = () => {
@@ -11,6 +13,15 @@ const UploadPage = () => {
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [uploadedFile, setUploadedFile] = useState(null);
+  
+  const { isAuthenticated } = useAuth();
+  const [sharePassword, setSharePassword] = useState('');
+  const [shareDownloadLimit, setShareDownloadLimit] = useState(0);
+  const [generatingShare, setGeneratingShare] = useState(false);
+  const [shareLink, setShareLink] = useState('');
+  const [shareCode, setShareCode] = useState('');
+
+
 
   const onDrop = useCallback((acceptedFiles) => {
     if (acceptedFiles?.length > 0) {
@@ -31,6 +42,13 @@ const UploadPage = () => {
 
   const handleUpload = async () => {
     if (!file) return;
+
+    // Reset previous share link state on new upload
+    setUploadedFile(null);
+    setShareLink('');
+    setShareCode('');
+    setSharePassword('');
+    setShareDownloadLimit(0);
 
     const formData = new FormData();
     formData.append('file', file);
@@ -56,6 +74,40 @@ const UploadPage = () => {
       setUploading(false);
     }
   };
+
+  const handleGenerateShare = async () => {
+    if (!uploadedFile) return;
+
+    setGeneratingShare(true);
+    try {
+      const response = await shareService.createShare({
+        fileId: uploadedFile.id,
+        password: sharePassword || undefined,
+        downloadLimit: Number(shareDownloadLimit) || 0,
+        expiryDays: Number(expiryDays),
+      });
+
+      const { shareCode, shareUrl } = response.data.data;
+      setShareCode(shareCode);
+      setShareLink(shareUrl || `${window.location.origin}/share/${shareCode}`);
+      toast.success('Share link generated!');
+    } catch (error) {
+      const msg = error?.response?.data?.message || 'Failed to generate share link.';
+      toast.error(msg);
+    } finally {
+      setGeneratingShare(false);
+    }
+  };
+
+  const resetAll = () => {
+    setFile(null);
+    setUploadedFile(null);
+    setShareLink('');
+    setShareCode('');
+    setSharePassword('');
+    setShareDownloadLimit(0);
+  };
+
 
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text);
@@ -166,30 +218,99 @@ const UploadPage = () => {
 
           {/* Upload Success State */}
           {uploadedFile && (
-            <div className="card p-8 text-center border-success-500/30 bg-success-500/5">
-              <div className="w-16 h-16 rounded-full bg-success-500/20 flex items-center justify-center mx-auto mb-4">
-                <CheckCircle size={32} className="text-success-500" />
-              </div>
-              <h3 className="text-xl font-heading font-semibold text-white mb-2">Upload Complete!</h3>
-              <p className="text-surface-400 mb-6 truncate">{uploadedFile.fileName}</p>
-
-              <div className="bg-surface-900 rounded-lg p-3 flex items-center justify-between border border-surface-700 mb-6">
-                <code className="text-sm text-primary-400 truncate max-w-[200px] sm:max-w-xs text-left">
-                  {uploadedFile.storageUrl}
-                </code>
-                <button
-                  onClick={() => copyToClipboard(uploadedFile.storageUrl)}
-                  className="btn-secondary btn-sm"
-                >
-                  Copy URL
-                </button>
+            <div className="card p-8 border-success-500/30 bg-success-500/5 space-y-6">
+              <div className="text-center">
+                <div className="w-16 h-16 rounded-full bg-success-500/20 flex items-center justify-center mx-auto mb-4">
+                  <CheckCircle size={32} className="text-success-500" />
+                </div>
+                <h3 className="text-xl font-heading font-semibold text-white mb-2">Upload Complete!</h3>
+                <p className="text-surface-400 truncate">{uploadedFile.originalName}</p>
               </div>
 
-              <div className="flex gap-3 justify-center">
-                <button onClick={() => setUploadedFile(null)} className="btn-secondary">
+              {!shareLink ? (
+                <div className="space-y-4 border-t border-surface-800 pt-6 text-left">
+                  <h4 className="font-heading font-semibold text-white">Generate Shareable Link</h4>
+                  
+                  {isAuthenticated ? (
+                    <div className="space-y-4 animate-fade-in">
+                      <div>
+                        <label htmlFor="sharePassword" className="label">Password Protection (Optional)</label>
+                        <input
+                          id="sharePassword"
+                          type="password"
+                          placeholder="Set a password for this link"
+                          value={sharePassword}
+                          onChange={(e) => setSharePassword(e.target.value)}
+                          className="input"
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="shareDownloadLimit" className="label">Download Limit (Optional, 0 for unlimited)</label>
+                        <input
+                          id="shareDownloadLimit"
+                          type="number"
+                          placeholder="e.g. 5 downloads"
+                          value={shareDownloadLimit}
+                          onChange={(e) => setShareDownloadLimit(e.target.value)}
+                          className="input"
+                          min="0"
+                        />
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-surface-500 bg-surface-900 p-3 rounded-lg border border-surface-800">
+                      ℹ️ Guests cannot password-protect or limit downloads. Please log in to unlock advanced sharing controls.
+                    </p>
+                  )}
+
+                  <button
+                    onClick={handleGenerateShare}
+                    disabled={generatingShare}
+                    className="btn-primary w-full"
+                  >
+                    {generatingShare ? 'Generating...' : 'Generate Share Link'}
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-6 border-t border-surface-800 pt-6 text-left animate-fade-in">
+                  <h4 className="font-heading font-semibold text-white text-center text-lg">Share Created Successfully 🎉</h4>
+                  
+                  {/* Share Code (Emphasized) */}
+                  <div className="bg-surface-900 rounded-2xl p-5 border border-surface-700 text-center space-y-2">
+                    <span className="text-xs uppercase tracking-wider text-surface-400 font-semibold">Share Code</span>
+                    <div className="text-4xl font-heading font-bold text-white tracking-widest uppercase select-all">
+                      {shareCode}
+                    </div>
+                    <button
+                      onClick={() => copyToClipboard(shareCode)}
+                      className="btn-secondary btn-sm px-6"
+                    >
+                      Copy Code
+                    </button>
+                  </div>
+
+                  {/* Share Link */}
+                  <div className="space-y-1.5">
+                    <span className="text-xs text-surface-400 font-semibold">Share Link</span>
+                    <div className="bg-surface-900 rounded-lg p-3 flex items-center justify-between border border-surface-700">
+                      <code className="text-sm text-primary-400 truncate max-w-[200px] sm:max-w-xs">
+                        {shareLink}
+                      </code>
+                      <button
+                        onClick={() => copyToClipboard(shareLink)}
+                        className="btn-secondary btn-sm"
+                      >
+                        Copy Link
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-3 justify-center border-t border-surface-800 pt-6">
+                <button onClick={resetAll} className="btn-secondary w-full">
                   Upload Another
                 </button>
-                {/* We'll add the Share redirect button here in Phase 4 */}
               </div>
             </div>
           )}

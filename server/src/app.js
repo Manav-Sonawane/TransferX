@@ -8,6 +8,8 @@ const { errorHandler } = require('./middlewares/error.middleware');
 const authRoutes = require('./routes/auth.routes');
 
 const fileRoutes = require('./routes/file.routes');
+const shareRoutes = require('./routes/share.routes');
+
 
 const app = express();
 
@@ -53,6 +55,8 @@ app.get('/api/health', (req, res) => {
 // ─── API Routes ───────────────────────────────
 app.use('/api/auth', authRoutes);
 app.use('/api/files', fileRoutes);
+app.use('/api/shares', shareRoutes);
+
 
 // ─── 404 Handler ─────────────────────────────
 app.use((req, res) => {

@@ -9,11 +9,11 @@ export const fileService = {
       onUploadProgress,
     });
   },
-  
+
   getUserFiles: () => {
     return api.get('/files');
   },
-  
+
   deleteFile: (fileId) => {
     return api.delete(`/files/${fileId}`);
   },

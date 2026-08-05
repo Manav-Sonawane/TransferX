@@ -87,7 +87,7 @@ const LandingPage = () => {
 
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-16">
-            <Link to="/transfer" className="btn-primary btn-lg group w-full sm:w-auto">
+            <Link to="/p2p" className="btn-primary btn-lg group w-full sm:w-auto">
               <Zap size={18} />
               Start P2P Transfer
               <ArrowRight size={16} className="group-hover:translate-x-1 transition-transform" />

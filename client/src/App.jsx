@@ -11,6 +11,8 @@ import DashboardPage from './pages/DashboardPage';
 import UploadPage from './pages/UploadPage';
 import AccessPage from './pages/AccessPage';
 import DownloadPage from './pages/DownloadPage';
+import P2PPage from './pages/P2PPage';
+import SessionPage from './pages/SessionPage';
 import NotFoundPage from './pages/NotFoundPage';
 
 
@@ -63,8 +65,9 @@ function App() {
           <Route path="/upload" element={<UploadPage />} />
           <Route path="/access" element={<AccessPage />} />
           <Route path="/share/:code" element={<DownloadPage />} />
-
-
+          
+          <Route path="/p2p" element={<P2PPage />} />
+          <Route path="/p2p/:sessionCode" element={<SessionPage />} />
           {/* Protected Routes — require auth */}
           <Route
             path="/dashboard"

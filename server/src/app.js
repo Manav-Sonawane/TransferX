@@ -9,6 +9,7 @@ const authRoutes = require('./routes/auth.routes');
 
 const fileRoutes = require('./routes/file.routes');
 const shareRoutes = require('./routes/share.routes');
+const dashboardRoutes = require('./routes/dashboard.routes');
 
 
 const app = express();
@@ -56,6 +57,7 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/files', fileRoutes);
 app.use('/api/shares', shareRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 
 // ─── 404 Handler ─────────────────────────────

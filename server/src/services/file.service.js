@@ -96,6 +96,10 @@ const deleteFile = async (fileId, userId) => {
     // 2. Delete from MongoDB
     await file.deleteOne();
 
+    // 2.5. Delete associated Shares
+    const Share = require('../models/Share');
+    await Share.deleteMany({ fileId: file._id });
+
     // 3. Deduct from user storage quota if authenticated
     if (file.owner) {
         await User.findByIdAndUpdate(file.owner, { $inc: { storageUsed: -file.size } });

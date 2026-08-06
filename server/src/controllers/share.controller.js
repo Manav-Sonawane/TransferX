@@ -74,11 +74,24 @@ const downloadShare = async (req, res, next) => {
         );
 
         const downloadUrl = storageService.generateDownloadUrl(file);
+        
+        const axios = require('axios');
+        const response = await axios({
+            url: downloadUrl,
+            method: 'GET',
+            responseType: 'stream'
+        });
 
-        console.log(`[DEBUG] Returned Response (Download Redirect): 302 Redirect to ${downloadUrl}`);
+        res.setHeader('Content-Disposition', `attachment; filename="${file.originalName}"`);
+        res.setHeader('Content-Type', file.mimeType || 'application/octet-stream');
+        
+        // Ensure content-length is passed along if available
+        if (response.headers['content-length']) {
+            res.setHeader('Content-Length', response.headers['content-length']);
+        }
 
-        // Redirect directly to Cloudinary attachment download URL
-        return res.redirect(downloadUrl);
+        console.log(`[DEBUG] Streaming file ${file.originalName} from Cloudinary`);
+        response.data.pipe(res);
     } catch (error) {
         next(error);
     }

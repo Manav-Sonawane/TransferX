@@ -9,11 +9,11 @@ const generateDownloadUrl = (file) => {
     const options = {
         resource_type: file.resourceType,
         secure: true,
-        flags: 'attachment',
     };
 
     if (file.resourceType !== 'raw') {
         options.format = file.format;
+        options.flags = `attachment:${file.fileName}`;
     }
 
     return cloudinary.url(file.publicId, options);

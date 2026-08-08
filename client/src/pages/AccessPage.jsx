@@ -56,9 +56,8 @@ const AccessPage = () => {
               value={code}
               onChange={handleInputChange}
               maxLength={5}
-              className={`input text-center text-3xl font-bold tracking-widest uppercase py-3 ${
-                error ? 'input-error' : ''
-              }`}
+              className={`input text-center text-3xl font-bold tracking-widest uppercase py-3 ${error ? 'input-error' : ''
+                }`}
             />
             {error && (
               <p className="mt-2 text-xs text-danger-500 flex items-center justify-center gap-1">

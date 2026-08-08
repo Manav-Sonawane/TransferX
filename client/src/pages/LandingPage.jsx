@@ -1,4 +1,5 @@
-import { Link } from 'react-router-dom';
+import { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { Zap, Shield, Users, ArrowRight, Upload, Share2, Download } from 'lucide-react';
 
 const features = [
@@ -35,6 +36,17 @@ const steps = [
 ];
 
 const LandingPage = () => {
+  const navigate = useNavigate();
+  const [accessCode, setAccessCode] = useState('');
+
+  const handleAccess = (e) => {
+    e.preventDefault();
+    const code = accessCode.trim().toUpperCase();
+    if (code.length === 5) {
+      navigate(`/share/${code}`);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-surface-950 overflow-hidden">
 
@@ -99,17 +111,20 @@ const LandingPage = () => {
           </div>
 
           {/* Access code bar */}
-          <div className="flex items-center justify-center gap-3 max-w-sm mx-auto">
+          <form onSubmit={handleAccess} className="flex items-center justify-center gap-3 max-w-sm mx-auto">
             <input
               type="text"
               placeholder="Enter share code..."
+              value={accessCode}
+              onChange={(e) => setAccessCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+              maxLength={5}
               className="input text-center tracking-widest font-mono text-base flex-1"
             />
-            <button className="btn-secondary px-5 py-3 rounded-xl">
+            <button type="submit" className="btn-secondary px-5 py-3 rounded-xl">
               <Download size={18} />
               Access
             </button>
-          </div>
+          </form>
           <p className="text-xs text-surface-600 mt-3">Enter a share code to access a file</p>
         </div>
       </section>

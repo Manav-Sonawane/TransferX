@@ -7,7 +7,8 @@ const cloudinary = require('../config/cloudinary');
  */
 const generateDownloadUrl = (file) => {
     // Sanitize the filename for use in the Content-Disposition header (remove commas, slashes)
-    const safeFileName = (file.originalName || file.fileName || 'download').replace(/[,/\\]/g, '_');
+    // Cloudinary fl_attachment does not support spaces, commas, or slashes
+    const safeFileName = (file.originalName || file.fileName || 'download').replace(/[\s,/\\]/g, '_');
 
     const options = {
         resource_type: file.resourceType,

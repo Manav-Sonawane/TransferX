@@ -59,6 +59,8 @@ const getShare = async (req, res, next) => {
 
 /**
  * GET /api/shares/:code/download
+ * Validates the share and redirects the client to the Cloudinary download URL.
+ * Streaming through the server is avoided to prevent memory and timeout issues on hosted platforms.
  */
 const downloadShare = async (req, res, next) => {
     try {
@@ -74,24 +76,11 @@ const downloadShare = async (req, res, next) => {
         );
 
         const downloadUrl = storageService.generateDownloadUrl(file);
-        
-        const axios = require('axios');
-        const response = await axios({
-            url: downloadUrl,
-            method: 'GET',
-            responseType: 'stream'
-        });
 
-        res.setHeader('Content-Disposition', `attachment; filename="${file.originalName}"`);
-        res.setHeader('Content-Type', file.mimeType || 'application/octet-stream');
-        
-        // Ensure content-length is passed along if available
-        if (response.headers['content-length']) {
-            res.setHeader('Content-Length', response.headers['content-length']);
-        }
+        console.log(`[DEBUG] Redirecting download for ${file.originalName} → ${downloadUrl}`);
 
-        console.log(`[DEBUG] Streaming file ${file.originalName} from Cloudinary`);
-        response.data.pipe(res);
+        // Redirect the browser directly to Cloudinary — no server-side proxying needed
+        return res.redirect(302, downloadUrl);
     } catch (error) {
         next(error);
     }

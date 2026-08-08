@@ -6,14 +6,19 @@ const cloudinary = require('../config/cloudinary');
  * @returns {string} The downloadable URL
  */
 const generateDownloadUrl = (file) => {
+    // Sanitize the filename for use in the Content-Disposition header (remove commas, slashes)
+    const safeFileName = (file.originalName || file.fileName || 'download').replace(/[,/\\]/g, '_');
+
     const options = {
         resource_type: file.resourceType,
         secure: true,
+        // Force browser to download instead of opening inline for all types
+        flags: `attachment:${safeFileName}`,
     };
 
-    if (file.resourceType !== 'raw') {
+    // Non-raw types need the format hint for correct extension in the URL
+    if (file.resourceType !== 'raw' && file.format) {
         options.format = file.format;
-        options.flags = `attachment:${file.fileName}`;
     }
 
     return cloudinary.url(file.publicId, options);

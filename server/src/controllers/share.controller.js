@@ -57,10 +57,13 @@ const getShare = async (req, res, next) => {
     }
 };
 
+const https = require('https');
+
 /**
  * GET /api/shares/:code/download
- * Validates the share and redirects the client to the Cloudinary download URL.
- * Streaming through the server is avoided to prevent memory and timeout issues on hosted platforms.
+ * Validates the share and proxies the Cloudinary download stream to the client.
+ * This ensures we can forcibly set the exact original filename and extension,
+ * bypassing Cloudinary's naming limitations for raw files.
  */
 const downloadShare = async (req, res, next) => {
     try {
@@ -77,12 +80,38 @@ const downloadShare = async (req, res, next) => {
 
         const downloadUrl = storageService.generateDownloadUrl(file);
 
-        console.log(`[DEBUG] Redirecting download for ${file.originalName} → ${downloadUrl}`);
+        console.log(`[DEBUG] Proxying download for ${file.originalName} → ${downloadUrl}`);
 
-        // Redirect the browser directly to Cloudinary — no server-side proxying needed
-        return res.redirect(302, downloadUrl);
+        // Sanitize filename to prevent header injection errors
+        const safeName = file.originalName.replace(/[^\w\d_.-]/g, '_');
+
+        // Set exact content-disposition so the browser saves it with the correct name/extension
+        res.setHeader('Content-Disposition', `attachment; filename="${safeName}"`);
+
+        // Proxy the stream
+        https.get(downloadUrl, (cloudinaryRes) => {
+            // Forward the content type and length if Cloudinary provides them
+            if (cloudinaryRes.headers['content-type']) {
+                res.setHeader('Content-Type', cloudinaryRes.headers['content-type']);
+            } else {
+                res.setHeader('Content-Type', 'application/octet-stream');
+            }
+            if (cloudinaryRes.headers['content-length']) {
+                res.setHeader('Content-Length', cloudinaryRes.headers['content-length']);
+            }
+            
+            cloudinaryRes.pipe(res);
+        }).on('error', (err) => {
+            console.error('Download stream error:', err);
+            if (!res.headersSent) {
+                res.status(500).json({ success: false, message: 'Failed to stream file from storage' });
+            }
+        });
+        
     } catch (error) {
-        next(error);
+        if (!res.headersSent) {
+            next(error);
+        }
     }
 };
 

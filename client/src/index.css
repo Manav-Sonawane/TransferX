@@ -1,12 +1,53 @@
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=Space+Grotesk:wght@400;500;600;700&family=Space+Mono:wght@400;700&family=Inter:wght@300;400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ═══════════════════════════════════════════════
+   NEO-BRUTALIST TOKEN SYSTEM — TransferX
+═══════════════════════════════════════════════ */
+:root {
+  /* Base */
+  --nb-bg: #ff0000;
+  /* pastel sage-green page background */
+  --nb-surface: #FEFCE6;
+  /* pale warm-yellow card surfaces */
+  --nb-black: #0A0A0A;
+  --nb-gray: #E8EDD8;
+  /* slightly green-tinted neutral */
+
+  /* Accent palette */
+  --nb-yellow: #FFD23F;
+  --nb-blue: #4A90D9;
+  --nb-green: #5CB85C;
+  --nb-pink: #FF6B6B;
+  --nb-orange: #FFA552;
+  --nb-lavender: #B8A9FA;
+
+  /* Borders */
+  --nb-border: 3px solid #0A0A0A;
+  --nb-border-thin: 2px solid #0A0A0A;
+  --nb-border-thick: 4px solid #0A0A0A;
+
+  /* Hard offset shadows */
+  --nb-shadow-sm: 3px 3px 0 #0A0A0A;
+  --nb-shadow: 5px 5px 0 #0A0A0A;
+  --nb-shadow-lg: 8px 8px 0 #0A0A0A;
+
+  /* Typography */
+  --font-display: 'Syne', sans-serif;
+  --font-heading: 'Space Grotesk', sans-serif;
+  --font-body: 'Inter', sans-serif;
+  --font-mono: 'Space Mono', monospace;
+}
+
 /* ─── Base Reset ─────────────────────────────── */
 @layer base {
-  *, *::before, *::after {
+
+  *,
+  *::before,
+  *::after {
     box-sizing: border-box;
   }
 
@@ -17,12 +58,21 @@
   }
 
   body {
-    @apply bg-surface-950 text-surface-100 font-body;
+    background-color: var(--nb-bg);
+    color: var(--nb-black);
+    font-family: var(--font-body);
     min-height: 100vh;
   }
 
-  h1, h2, h3, h4, h5, h6 {
-    @apply font-heading;
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--font-heading);
+    font-weight: 700;
+    color: var(--nb-black);
   }
 
   ::-webkit-scrollbar {
@@ -31,175 +81,370 @@
   }
 
   ::-webkit-scrollbar-track {
-    @apply bg-surface-900;
+    background: var(--nb-bg);
   }
 
   ::-webkit-scrollbar-thumb {
-    @apply bg-surface-600 rounded-full;
-  }
-
-  ::-webkit-scrollbar-thumb:hover {
-    @apply bg-surface-500;
+    background: var(--nb-black);
   }
 
   ::selection {
-    @apply bg-primary-500/30 text-primary-100;
+    background: var(--nb-yellow);
+    color: var(--nb-black);
   }
 
-  input, textarea, select {
-    @apply outline-none;
+  input,
+  textarea,
+  select {
+    outline: none;
   }
 }
 
-/* ─── Component Layer ────────────────────────── */
+/* ─── NB Component Library ───────────────────── */
 @layer components {
 
-  /* Buttons */
-  .btn {
-    @apply inline-flex items-center justify-center gap-2 
-           px-4 py-2.5 rounded-xl font-medium text-sm
-           transition-all duration-200 cursor-pointer
-           disabled:opacity-50 disabled:cursor-not-allowed
-           focus:ring-2 focus:ring-offset-2 focus:ring-offset-surface-950;
+  /* ── Cards ─────────────────────────────────── */
+  .nb-card {
+    background: var(--nb-surface);
+    border: var(--nb-border);
+    box-shadow: var(--nb-shadow);
+    border-radius: 0;
   }
 
-  .btn-primary {
-    @apply btn bg-primary-600 hover:bg-primary-500 text-white
-           focus:ring-primary-500 shadow-md hover:shadow-glow-blue
-           active:scale-[0.98];
+  .nb-card-sm {
+    background: var(--nb-surface);
+    border: var(--nb-border);
+    box-shadow: var(--nb-shadow-sm);
+    border-radius: 0;
   }
 
-  .btn-secondary {
-    @apply btn bg-secondary-600 hover:bg-secondary-500 text-white
-           focus:ring-secondary-500 shadow-md hover:shadow-glow-purple
-           active:scale-[0.98];
+  .nb-card-lg {
+    background: var(--nb-surface);
+    border: var(--nb-border-thick);
+    box-shadow: var(--nb-shadow-lg);
+    border-radius: 0;
   }
 
-  .btn-outline {
-    @apply btn bg-transparent border border-surface-700 hover:border-surface-500
-           text-surface-300 hover:text-surface-100 hover:bg-surface-800
-           focus:ring-surface-500 active:scale-[0.98];
+  /* ── Buttons ────────────────────────────────── */
+  .nb-btn {
+    @apply inline-flex items-center justify-center gap-2 px-5 py-3 text-sm font-bold uppercase tracking-wider border-[3px] border-black cursor-pointer select-none disabled:opacity-40 disabled:cursor-not-allowed disabled:transform-none;
+    font-family: var(--font-heading);
+    border-radius: 0;
+    box-shadow: var(--nb-shadow);
+    transform: translate(0, 0);
+    transition: transform 100ms ease, box-shadow 100ms ease;
+    text-decoration: none;
   }
 
-  .btn-ghost {
-    @apply btn bg-transparent hover:bg-surface-800 text-surface-400
-           hover:text-surface-100 focus:ring-surface-500 active:scale-[0.98];
+  .nb-btn:hover:not(:disabled) {
+    transform: translate(-2px, -2px);
+    box-shadow: 7px 7px 0 var(--nb-black);
   }
 
-  .btn-danger {
-    @apply btn bg-danger-600 hover:bg-danger-500 text-white
-           focus:ring-danger-500 active:scale-[0.98];
+  .nb-btn:active:not(:disabled) {
+    transform: translate(3px, 3px);
+    box-shadow: 0 0 0 var(--nb-black);
   }
 
-  .btn-sm {
-    @apply px-3 py-1.5 text-xs rounded-lg;
+  .nb-btn-primary {
+    @apply nb-btn;
+    background: var(--nb-yellow);
+    color: var(--nb-black);
   }
 
-  .btn-lg {
-    @apply px-6 py-3.5 text-base rounded-2xl;
+  .nb-btn-blue {
+    @apply nb-btn;
+    background: var(--nb-blue);
+    color: white;
   }
 
-  .btn-icon {
-    @apply btn p-2.5 rounded-xl;
+  .nb-btn-green {
+    @apply nb-btn;
+    background: var(--nb-green);
+    color: white;
   }
 
-  /* Cards */
-  .card {
-    @apply bg-surface-900 border border-surface-800 rounded-2xl;
+  .nb-btn-ghost {
+    @apply nb-btn;
+    background: var(--nb-surface);
+    color: var(--nb-black);
   }
 
-  .card-hover {
-    @apply card transition-all duration-200
-           hover:border-surface-700 hover:shadow-card-dark
-           hover:-translate-y-0.5;
+  .nb-btn-danger {
+    @apply nb-btn;
+    background: var(--nb-pink);
+    color: white;
   }
 
-  .card-glass {
-    @apply bg-white/5 backdrop-blur-md border border-white/10 rounded-2xl;
+  .nb-btn-black {
+    @apply nb-btn;
+    background: var(--nb-black);
+    color: white;
   }
 
-  /* Inputs */
-  .input {
-    @apply w-full px-4 py-3 rounded-xl text-sm
-           bg-surface-800 border border-surface-700 text-surface-100
-           placeholder:text-surface-500
-           focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20
-           transition-all duration-200;
+  .nb-btn-lavender {
+    @apply nb-btn;
+    background: var(--nb-lavender);
+    color: var(--nb-black);
   }
 
-  .input-error {
-    @apply border-danger-500 focus:border-danger-500 focus:ring-danger-500/20;
+  .nb-btn-sm {
+    @apply px-3 py-1.5 text-xs;
   }
 
-  .label {
-    @apply block text-sm font-medium text-surface-300 mb-1.5;
+  .nb-btn-lg {
+    @apply px-8 py-4 text-base;
   }
 
-  /* Badges */
-  .badge {
-    @apply inline-flex items-center gap-1 px-2.5 py-0.5
-           text-xs font-medium rounded-full;
+  /* ── Inputs ─────────────────────────────────── */
+  .nb-input {
+    @apply w-full px-4 py-3 text-sm font-medium text-black placeholder:text-gray-400 transition-all duration-100;
+    background: var(--nb-surface);
+    border: var(--nb-border);
+    border-radius: 0;
+    font-family: var(--font-body);
   }
 
-  .badge-blue {
-    @apply badge bg-primary-500/15 text-primary-400 border border-primary-500/20;
+  .nb-input:focus {
+    outline: 3px solid var(--nb-yellow);
+    outline-offset: 2px;
+    box-shadow: var(--nb-shadow-sm);
   }
 
-  .badge-purple {
-    @apply badge bg-secondary-500/15 text-secondary-400 border border-secondary-500/20;
+  .nb-input-error {
+    border-color: var(--nb-pink) !important;
   }
 
-  .badge-green {
-    @apply badge bg-success-500/15 text-success-500 border border-success-500/20;
+  .nb-input-error:focus {
+    outline-color: var(--nb-pink);
   }
 
-  .badge-orange {
-    @apply badge bg-warning-500/15 text-warning-500 border border-warning-500/20;
+  .nb-label {
+    @apply block text-xs font-bold uppercase tracking-wider mb-1.5;
+    font-family: var(--font-heading);
+    color: var(--nb-black);
   }
 
-  .badge-red {
-    @apply badge bg-danger-500/15 text-danger-500 border border-danger-500/20;
+  /* ── Badges ─────────────────────────────────── */
+  .nb-badge {
+    @apply inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold uppercase tracking-widest;
+    font-family: var(--font-mono);
+    border: var(--nb-border-thin);
+    border-radius: 0;
+    box-shadow: var(--nb-shadow-sm);
   }
 
-  .badge-gray {
-    @apply badge bg-surface-700 text-surface-400 border border-surface-600;
+  .nb-badge-yellow {
+    @apply nb-badge;
+    background: var(--nb-yellow);
+    color: var(--nb-black);
   }
 
-  /* Divider */
-  .divider {
-    @apply border-t border-surface-800 my-4;
+  .nb-badge-blue {
+    @apply nb-badge;
+    background: var(--nb-blue);
+    color: white;
   }
 
-  /* Skeleton */
-  .skeleton {
-    @apply bg-surface-800 rounded-xl animate-pulse;
+  .nb-badge-green {
+    @apply nb-badge;
+    background: var(--nb-green);
+    color: white;
   }
 
-  /* Page container */
-  .page-container {
+  .nb-badge-pink {
+    @apply nb-badge;
+    background: var(--nb-pink);
+    color: white;
+  }
+
+  .nb-badge-black {
+    @apply nb-badge;
+    background: var(--nb-black);
+    color: white;
+  }
+
+  .nb-badge-white {
+    @apply nb-badge;
+    background: white;
+    color: var(--nb-black);
+  }
+
+  .nb-badge-orange {
+    @apply nb-badge;
+    background: var(--nb-orange);
+    color: var(--nb-black);
+  }
+
+  .nb-badge-lavender {
+    @apply nb-badge;
+    background: var(--nb-lavender);
+    color: var(--nb-black);
+  }
+
+  /* ── Progress ───────────────────────────────── */
+  .nb-progress-track {
+    @apply w-full overflow-hidden;
+    height: 24px;
+    border: var(--nb-border);
+    border-radius: 0;
+    background: var(--nb-gray);
+  }
+
+  .nb-progress-bar {
+    height: 100%;
+    background: var(--nb-black);
+    transition: width 300ms ease;
+  }
+
+  /* ── Dropzone ───────────────────────────────── */
+  .nb-dropzone {
+    @apply w-full flex flex-col items-center justify-center text-center cursor-pointer;
+    border: 3px dashed var(--nb-black);
+    border-radius: 0;
+    background: var(--nb-surface);
+    transition: background 120ms ease, box-shadow 120ms ease;
+    padding: 2.5rem;
+  }
+
+  .nb-dropzone:hover:not(.nb-dropzone-disabled) {
+    background: #FEFDE8;
+    box-shadow: var(--nb-shadow);
+  }
+
+  .nb-dropzone-active {
+    background: var(--nb-yellow);
+    border-style: solid;
+    box-shadow: var(--nb-shadow);
+  }
+
+  .nb-dropzone-reject {
+    background: var(--nb-pink);
+    border-style: solid;
+    box-shadow: var(--nb-shadow);
+  }
+
+  .nb-dropzone-disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+
+  /* ── Code / Mono elements ───────────────────── */
+  .nb-code {
+    font-family: var(--font-mono);
+    @apply font-bold tracking-widest uppercase;
+  }
+
+  /* ── Divider ────────────────────────────────── */
+  .nb-divider {
+    @apply flex items-center gap-3 my-2;
+  }
+
+  .nb-divider::before,
+  .nb-divider::after {
+    content: '';
+    flex: 1;
+    border-top: 2px solid var(--nb-black);
+  }
+
+  /* ── Page helpers ───────────────────────────── */
+  .nb-page {
+    background-color: var(--nb-bg);
+    min-height: 100vh;
+  }
+
+  .nb-container {
     @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
   }
 
-  /* Section */
-  .section {
-    @apply py-12 sm:py-16 lg:py-20;
+  /* ── Typography helpers ─────────────────────── */
+  .nb-display {
+    font-family: var(--font-display);
+    font-weight: 800;
+    color: var(--nb-black);
   }
 
-  /* Gradient text */
-  .gradient-text {
-    @apply bg-gradient-to-r from-primary-400 to-secondary-400 bg-clip-text text-transparent;
+  .nb-heading {
+    font-family: var(--font-heading);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--nb-black);
   }
 
-  /* Focus ring */
-  .focus-ring {
-    @apply focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2 focus:ring-offset-surface-950;
+  .nb-mono {
+    font-family: var(--font-mono);
   }
 
-  /* Code chip */
-  .code-chip {
-    @apply font-mono bg-surface-800 border border-surface-700 
-           px-3 py-1.5 rounded-lg text-primary-300 text-sm
-           select-all cursor-pointer hover:bg-surface-700 transition-colors;
+  /* ── File chip ──────────────────────────────── */
+  .nb-file-chip {
+    @apply flex items-center gap-3 p-3;
+    border: var(--nb-border);
+    background: var(--nb-gray);
+  }
+
+  /* ── Table / metadata ───────────────────────── */
+  .nb-meta-row {
+    @apply flex items-center justify-between py-2;
+    border-bottom: 2px solid var(--nb-black);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+  }
+
+  .nb-meta-row:last-child {
+    border-bottom: none;
+  }
+
+  /* ── Section header strips ──────────────────── */
+  .nb-card-header {
+    @apply px-5 py-4 flex items-center justify-between;
+    border-bottom: var(--nb-border);
+  }
+
+  .nb-card-header-yellow {
+    @apply nb-card-header;
+    background: var(--nb-yellow);
+  }
+
+  .nb-card-header-blue {
+    @apply nb-card-header;
+    background: var(--nb-blue);
+    color: white;
+  }
+
+  .nb-card-header-green {
+    @apply nb-card-header;
+    background: var(--nb-green);
+    color: white;
+  }
+
+  .nb-card-header-black {
+    @apply nb-card-header;
+    background: var(--nb-black);
+    color: white;
+  }
+
+  .nb-card-header-lavender {
+    @apply nb-card-header;
+    background: var(--nb-lavender);
+  }
+
+  .nb-card-header-white {
+    @apply nb-card-header;
+    background: white;
+  }
+
+  /* ── Utility shadows ────────────────────────── */
+  .shadow-nb {
+    box-shadow: var(--nb-shadow);
+  }
+
+  .shadow-nb-sm {
+    box-shadow: var(--nb-shadow-sm);
+  }
+
+  .shadow-nb-lg {
+    box-shadow: var(--nb-shadow-lg);
   }
 }
 
@@ -216,5 +461,37 @@
   .no-scrollbar {
     -ms-overflow-style: none;
     scrollbar-width: none;
+  }
+
+  @keyframes nb-slide-up {
+    0% {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  .nb-slide-up {
+    animation: nb-slide-up 0.15s ease-out;
+  }
+
+  @keyframes nb-blink {
+
+    0%,
+    100% {
+      opacity: 1;
+    }
+
+    50% {
+      opacity: 0.2;
+    }
+  }
+
+  .nb-blink {
+    animation: nb-blink 1s step-end infinite;
   }
 }

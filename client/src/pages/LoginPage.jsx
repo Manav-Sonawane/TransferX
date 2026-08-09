@@ -1,8 +1,11 @@
 import { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { Eye, EyeOff, Zap, Mail, Lock, AlertCircle } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, AlertCircle, Zap } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
+import NBButton from '../components/ui/NBButton';
+import NBInput from '../components/ui/NBInput';
+import NBCard from '../components/ui/NBCard';
 
 const LoginPage = () => {
   const [form, setForm] = useState({ email: '', password: '' });
@@ -33,7 +36,6 @@ const LoginPage = () => {
     e.preventDefault();
     const errs = validate();
     if (Object.keys(errs).length > 0) return setErrors(errs);
-
     setLoading(true);
     try {
       await login({ email: form.email, password: form.password });
@@ -48,58 +50,71 @@ const LoginPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-surface-950 flex">
-      {/* Left Panel — Branding */}
-      <div className="hidden lg:flex flex-col justify-between w-1/2 bg-gradient-to-br from-surface-900 to-surface-950 border-r border-surface-800 p-12 relative overflow-hidden">
-        {/* Glow */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] rounded-full bg-primary-500/5 blur-3xl pointer-events-none" />
+    <div className="nb-page flex min-h-screen">
 
-        <div className="flex items-center gap-3 relative z-10">
-          <div className="w-9 h-9 rounded-xl bg-gradient-brand flex items-center justify-center shadow-glow-blue">
-            <Zap size={20} className="text-white" />
+      {/* ─── Left branding panel ─── */}
+      <div
+        className="hidden lg:flex flex-col justify-between w-5/12 p-12"
+        style={{ background: 'var(--nb-black)', borderRight: 'var(--nb-border)' }}
+      >
+        {/* Logo */}
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 flex items-center justify-center" style={{ background: 'var(--nb-yellow)', border: '2px solid white' }}>
+            <Zap size={20} style={{ color: 'var(--nb-black)' }} fill="var(--nb-black)" />
           </div>
-          <span className="font-heading font-bold text-xl text-white">TransferX</span>
+          <span className="text-xl font-bold uppercase tracking-wider text-white" style={{ fontFamily: 'var(--font-heading)' }}>
+            TransferX
+          </span>
         </div>
 
-        <div className="relative z-10">
-          <blockquote className="text-2xl font-heading font-semibold text-white leading-snug mb-4">
-            "Transfer files the way they were
-            <br />
-            <span className="gradient-text">meant to be transferred.</span>"
+        {/* Quote */}
+        <div>
+          <blockquote
+            className="text-3xl font-extrabold text-white leading-tight mb-6"
+            style={{ fontFamily: 'var(--font-display)' }}
+          >
+            "Transfer files the way they were{' '}
+            <span style={{ background: 'var(--nb-yellow)', color: 'var(--nb-black)', padding: '0 4px' }}>
+              meant to be.
+            </span>"
           </blockquote>
-          <p className="text-surface-400 text-sm">Instant P2P • Secure Cloud Share • Auto-expiry</p>
+          <p className="text-sm font-bold uppercase tracking-widest" style={{ fontFamily: 'var(--font-mono)', color: '#94a3b8' }}>
+            Instant P2P · Secure Cloud Share · Auto-expiry
+          </p>
         </div>
 
-        <div className="relative z-10 flex items-center gap-4 text-sm text-surface-500">
-          <span>© 2026 TransferX</span>
-          <span>·</span>
-          <a href="#" className="hover:text-surface-300 transition-colors">Privacy</a>
-          <a href="#" className="hover:text-surface-300 transition-colors">Terms</a>
-        </div>
+        <p className="text-xs" style={{ fontFamily: 'var(--font-mono)', color: '#475569' }}>© 2026 TransferX</p>
       </div>
 
-      {/* Right Panel — Form */}
-      <div className="flex-1 flex flex-col justify-center items-center px-6 py-12">
+      {/* ─── Right form panel ─── */}
+      <div className="flex-1 flex flex-col justify-center items-center px-6 py-12" style={{ background: 'var(--nb-bg)' }}>
         {/* Mobile logo */}
         <div className="flex items-center gap-2 mb-8 lg:hidden">
-          <div className="w-8 h-8 rounded-lg bg-gradient-brand flex items-center justify-center">
-            <Zap size={16} className="text-white" />
+          <div className="w-8 h-8 flex items-center justify-center" style={{ background: 'var(--nb-black)' }}>
+            <Zap size={16} style={{ color: 'var(--nb-yellow)' }} fill="var(--nb-yellow)" />
           </div>
-          <span className="font-heading font-bold text-lg text-white">TransferX</span>
+          <span className="font-bold uppercase tracking-wider" style={{ fontFamily: 'var(--font-heading)' }}>TransferX</span>
         </div>
 
-        <div className="w-full max-w-md animate-fade-in">
-          <div className="mb-8">
-            <h1 className="text-3xl font-heading font-bold text-white mb-2">Welcome back</h1>
-            <p className="text-surface-400">Sign in to your account to continue.</p>
+        <NBCard className="w-full max-w-md">
+          {/* Card header */}
+          <div className="nb-card-header-black">
+            <h1 className="font-bold uppercase tracking-wider text-white" style={{ fontFamily: 'var(--font-heading)' }}>
+              Welcome Back
+            </h1>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-5" noValidate>
-            {/* Email */}
-            <div>
-              <label htmlFor="email" className="label">Email address</label>
-              <div className="relative">
-                <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-surface-500 pointer-events-none" />
+          <div className="p-6">
+            <p className="text-sm text-gray-500 mb-6" style={{ fontFamily: 'var(--font-mono)' }}>
+              Sign in to your account to continue.
+            </p>
+
+            <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
+              {/* Email */}
+              <div>
+                <label className="nb-label flex items-center gap-1.5">
+                  <Mail size={12} /> Email Address
+                </label>
                 <input
                   id="email"
                   name="email"
@@ -108,83 +123,68 @@ const LoginPage = () => {
                   value={form.email}
                   onChange={handleChange}
                   placeholder="you@example.com"
-                  className={`input pl-10 ${errors.email ? 'input-error' : ''}`}
+                  className={`nb-input ${errors.email ? 'nb-input-error' : ''}`}
                 />
+                {errors.email && (
+                  <p className="mt-1 text-xs font-bold flex items-center gap-1" style={{ color: 'var(--nb-pink)', fontFamily: 'var(--font-mono)' }}>
+                    <AlertCircle size={11} /> {errors.email}
+                  </p>
+                )}
               </div>
-              {errors.email && (
-                <p className="mt-1.5 text-xs text-danger-500 flex items-center gap-1">
-                  <AlertCircle size={12} /> {errors.email}
-                </p>
-              )}
-            </div>
 
-            {/* Password */}
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
-                <label htmlFor="password" className="label mb-0">Password</label>
-                <a href="#" className="text-xs text-primary-400 hover:text-primary-300 transition-colors">
-                  Forgot password?
-                </a>
+              {/* Password */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="nb-label mb-0 flex items-center gap-1.5">
+                    <Lock size={12} /> Password
+                  </label>
+                  <a href="#" className="text-xs font-bold underline" style={{ fontFamily: 'var(--font-mono)', color: 'var(--nb-blue)' }}>
+                    Forgot?
+                  </a>
+                </div>
+                <div className="relative">
+                  <input
+                    id="password"
+                    name="password"
+                    type={showPassword ? 'text' : 'password'}
+                    autoComplete="current-password"
+                    value={form.password}
+                    onChange={handleChange}
+                    placeholder="Your password"
+                    className={`nb-input pr-12 ${errors.password ? 'nb-input-error' : ''}`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((p) => !p)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2"
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+                {errors.password && (
+                  <p className="mt-1 text-xs font-bold flex items-center gap-1" style={{ color: 'var(--nb-pink)', fontFamily: 'var(--font-mono)' }}>
+                    <AlertCircle size={11} /> {errors.password}
+                  </p>
+                )}
               </div>
-              <div className="relative">
-                <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-surface-500 pointer-events-none" />
-                <input
-                  id="password"
-                  name="password"
-                  type={showPassword ? 'text' : 'password'}
-                  autoComplete="current-password"
-                  value={form.password}
-                  onChange={handleChange}
-                  placeholder="Your password"
-                  className={`input pl-10 pr-10 ${errors.password ? 'input-error' : ''}`}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((p) => !p)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-surface-500 hover:text-surface-300 transition-colors"
-                >
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-              </div>
-              {errors.password && (
-                <p className="mt-1.5 text-xs text-danger-500 flex items-center gap-1">
-                  <AlertCircle size={12} /> {errors.password}
-                </p>
-              )}
-            </div>
 
-            {/* Submit */}
-            <button
-              type="submit"
-              disabled={loading}
-              className="btn-primary w-full py-3 text-base mt-2"
-            >
-              {loading ? (
-                <span className="flex items-center justify-center gap-2">
-                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Signing in...
-                </span>
-              ) : (
-                'Sign in'
-              )}
-            </button>
-          </form>
+              <NBButton type="submit" variant="primary" loading={loading} className="w-full mt-1">
+                Sign In
+              </NBButton>
+            </form>
 
-          {/* Divider */}
-          <div className="flex items-center gap-4 my-6">
-            <div className="flex-1 h-px bg-surface-800" />
-            <span className="text-xs text-surface-600">OR</span>
-            <div className="flex-1 h-px bg-surface-800" />
+            {/* Divider */}
+            <div className="nb-divider text-xs font-bold my-5" style={{ fontFamily: 'var(--font-mono)' }}>OR</div>
+
+            <p className="text-center text-sm" style={{ fontFamily: 'var(--font-mono)', color: '#6b7280' }}>
+              No account?{' '}
+              <Link to="/register" className="font-bold underline" style={{ color: 'var(--nb-black)' }}>
+                Create one free →
+              </Link>
+            </p>
           </div>
-
-          {/* Register link */}
-          <p className="text-center text-sm text-surface-400">
-            Don't have an account?{' '}
-            <Link to="/register" className="text-primary-400 hover:text-primary-300 font-medium transition-colors">
-              Create one free
-            </Link>
-          </p>
-        </div>
+        </NBCard>
       </div>
     </div>
   );

@@ -1,82 +1,68 @@
 import { useState, useCallback } from 'react';
-import { useDropzone } from 'react-dropzone';
-import {
-  UploadCloud, File as FileIcon, X, CheckCircle,
-  Copy, RefreshCw, Clock, Shield, AlertCircle,
-} from 'lucide-react';
+import { UploadCloud, X, Copy, RefreshCw, Clock, Shield, CheckCircle } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import { fileService } from '../../services/file.service';
 import { shareService } from '../../services/share.service';
 import { useAuth } from '../../context/AuthContext';
-import { Link } from 'react-router-dom';
-import toast from 'react-hot-toast';
+import NBCard from '../ui/NBCard';
+import NBButton from '../ui/NBButton';
+import NBInput from '../ui/NBInput';
+import NBBadge from '../ui/NBBadge';
+import NBDropzone from '../ui/NBDropzone';
+import NBProgress from '../ui/NBProgress';
 
-const formatBytes = (bytes, decimals = 2) => {
-  if (!bytes || bytes === 0) return '0 Bytes';
-  const k = 1024;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+const formatBytes = (bytes, d = 2) => {
+  if (!bytes || bytes === 0) return '0 B';
+  const k = 1024, s = ['B', 'KB', 'MB', 'GB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(decimals)) + ' ' + sizes[i];
+  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(d))} ${s[i]}`;
 };
 
-const EXPIRY_OPTIONS = [
-  { v: '1', l: '1 Day' },
-  { v: '7', l: '7 Days' },
-  { v: '30', l: '30 Days' },
+const EXPIRY = [
+  { v: '1',  l: '1 DAY'  },
+  { v: '7',  l: '7 DAYS' },
+  { v: '30', l: '30 DAYS'},
 ];
 
 const ShareCard = () => {
   const { isAuthenticated } = useAuth();
 
-  // Upload state
-  const [file, setFile] = useState(null);
-  const [uploading, setUploading] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const [uploadedFile, setUploadedFile] = useState(null);
-
-  // Share config state
-  const [expiryDays, setExpiryDays] = useState('7');
+  const [file,          setFile         ] = useState(null);
+  const [uploading,     setUploading    ] = useState(false);
+  const [progress,      setProgress     ] = useState(0);
+  const [uploadedFile,  setUploadedFile ] = useState(null);
+  const [expiryDays,    setExpiryDays   ] = useState('7');
   const [sharePassword, setSharePassword] = useState('');
-  const [shareDownloadLimit, setShareDownloadLimit] = useState(0);
+  const [dlLimit,       setDlLimit      ] = useState(0);
+  const [generating,    setGenerating   ] = useState(false);
+  const [shareCode,     setShareCode    ] = useState('');
+  const [shareLink,     setShareLink    ] = useState('');
 
-  // Share result state
-  const [generatingShare, setGeneratingShare] = useState(false);
-  const [shareCode, setShareCode] = useState('');
-  const [shareLink, setShareLink] = useState('');
-
-  const onDrop = useCallback((acceptedFiles) => {
-    if (acceptedFiles?.length > 0) {
-      setFile(acceptedFiles[0]);
-      // Clear any previous upload/share state
-      setUploadedFile(null);
-      setShareCode('');
-      setShareLink('');
-    }
+  const onFileAccepted = useCallback((f) => {
+    setFile(f);
+    setUploadedFile(null);
+    setShareCode('');
+    setShareLink('');
   }, []);
-
-  const { getRootProps, getInputProps, isDragActive, isDragReject } = useDropzone({
-    onDrop,
-    maxFiles: 1,
-    maxSize: 100 * 1024 * 1024, // 100 MB — matches backend limit
-  });
 
   const handleUpload = async () => {
     if (!file) return;
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('expiryDays', expiryDays);
-    formData.append('visibility', 'public');
-
+    const fd = new FormData();
+    fd.append('file', file);
+    fd.append('expiryDays', expiryDays);
+    fd.append('visibility', 'public');
     setUploading(true);
     setProgress(0);
     try {
-      const res = await fileService.uploadFile(formData, (evt) => {
+      const res = await fileService.uploadFile(fd, (evt) => {
         setProgress(Math.round((evt.loaded * 100) / evt.total));
       });
       setUploadedFile(res.data.data.file);
       setFile(null);
       toast.success('File uploaded!');
     } catch (err) {
-      toast.error(err?.response?.data?.message || 'Upload failed. Please try again.');
+      toast.error(err?.response?.data?.message || 'Upload failed.');
     } finally {
       setUploading(false);
     }
@@ -84,290 +70,235 @@ const ShareCard = () => {
 
   const handleGenerateShare = async () => {
     if (!uploadedFile) return;
-    setGeneratingShare(true);
+    setGenerating(true);
     try {
       const res = await shareService.createShare({
-        fileId: uploadedFile.id,
-        password: sharePassword || undefined,
-        downloadLimit: Number(shareDownloadLimit) || 0,
-        expiryDays: Number(expiryDays),
+        fileId:       uploadedFile.id,
+        password:     sharePassword || undefined,
+        downloadLimit:Number(dlLimit) || 0,
+        expiryDays:   Number(expiryDays),
       });
       const { shareCode: code, shareUrl } = res.data.data;
       setShareCode(code);
       setShareLink(shareUrl || `${window.location.origin}/share/${code}`);
       toast.success('Share link generated!');
     } catch (err) {
-      toast.error(err?.response?.data?.message || 'Failed to generate share link.');
+      toast.error(err?.response?.data?.message || 'Failed to generate share.');
     } finally {
-      setGeneratingShare(false);
+      setGenerating(false);
     }
   };
 
-  const copyToClipboard = (text, label) => {
+  const copy = (text, label) => {
     navigator.clipboard.writeText(text);
     toast.success(`${label} copied!`);
   };
 
-  const resetAll = () => {
-    setFile(null);
-    setUploadedFile(null);
-    setShareCode('');
-    setShareLink('');
-    setSharePassword('');
-    setShareDownloadLimit(0);
-    setProgress(0);
+  const reset = () => {
+    setFile(null); setUploadedFile(null); setShareCode(''); setShareLink('');
+    setSharePassword(''); setDlLimit(0); setProgress(0);
   };
 
-  /* ─────────────────── RENDER ─────────────────── */
+  /* ─── RENDER ─── */
   return (
-    <div className="card flex flex-col border-surface-800 bg-surface-900/60 backdrop-blur-xl">
-      {/* ── Header ── */}
-      <div className="p-6 border-b border-surface-800">
-        <div className="flex items-center gap-3 mb-3">
-          <div className="w-10 h-10 rounded-xl bg-primary-500/15 border border-primary-500/20 flex items-center justify-center flex-shrink-0">
-            <UploadCloud size={20} className="text-primary-400" />
+    <NBCard className="flex flex-col">
+      {/* ── Header strip ── */}
+      <div className="nb-card-header-yellow">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 flex items-center justify-center border-[2px] border-black/30 flex-shrink-0" style={{ background: 'rgba(0,0,0,0.08)' }}>
+            <UploadCloud size={18} />
           </div>
           <div>
-            <h2 className="font-heading font-bold text-white text-base leading-tight">Share Files</h2>
-            <p className="text-xs text-surface-500 mt-0.5">Upload → Share Code</p>
+            <h2 className="font-bold text-base uppercase tracking-wider" style={{ fontFamily: 'var(--font-heading)' }}>
+              Share Files
+            </h2>
+            <p className="text-xs font-bold uppercase tracking-widest mt-0.5 opacity-70" style={{ fontFamily: 'var(--font-mono)' }}>
+              Upload → Share Code
+            </p>
           </div>
         </div>
-        <p className="text-sm text-surface-400 leading-relaxed">
-          Upload a file and generate a secure share code. Files are stored until expiry.
-        </p>
+        <NBBadge color="black" className="hidden sm:inline-flex">Cloud</NBBadge>
       </div>
 
       {/* ── Body ── */}
-      <div className="p-6 flex flex-col gap-5 flex-1">
+      <div className="p-5 flex flex-col gap-4 flex-1">
 
-        {/* ── State: Share created ── */}
+        {/* ─ State: Share created ─ */}
         {shareCode ? (
-          <div className="flex flex-col gap-4 animate-fade-in">
-            <div className="text-center">
-              <div className="w-12 h-12 rounded-full bg-success-500/20 flex items-center justify-center mx-auto mb-2">
-                <CheckCircle size={24} className="text-success-500" />
-              </div>
-              <p className="text-sm font-semibold text-white">Share Created!</p>
+          <div className="flex flex-col gap-4 nb-slide-up">
+            {/* Success badge */}
+            <div className="flex items-center gap-2 p-3" style={{ background: 'var(--nb-green)', border: 'var(--nb-border)' }}>
+              <CheckCircle size={16} color="white" />
+              <span className="text-xs font-bold uppercase tracking-wider text-white" style={{ fontFamily: 'var(--font-heading)' }}>
+                Share Created!
+              </span>
             </div>
 
             {/* Code block */}
-            <div className="bg-surface-950 rounded-xl p-4 border border-surface-700 text-center space-y-3">
-              <p className="text-xs uppercase tracking-widest text-surface-500 font-semibold">Share Code</p>
-              <div className="text-4xl font-heading font-bold text-white tracking-[0.3em] select-all font-mono">
-                {shareCode}
+            <div style={{ border: 'var(--nb-border)', background: 'var(--nb-gray)' }}>
+              <div className="px-4 py-2 border-b-[3px] border-black">
+                <span className="text-xs font-bold uppercase tracking-widest" style={{ fontFamily: 'var(--font-mono)' }}>Share Code</span>
               </div>
-              <button
-                onClick={() => copyToClipboard(shareCode, 'Code')}
-                className="btn-outline btn-sm gap-1.5"
-              >
-                <Copy size={12} /> Copy Code
-              </button>
+              <div className="p-4 text-center">
+                <div className="text-4xl font-bold tracking-[0.5em] mb-3" style={{ fontFamily: 'var(--font-mono)' }}>
+                  {shareCode}
+                </div>
+                <NBButton variant="ghost" size="sm" onClick={() => copy(shareCode, 'Code')}>
+                  <Copy size={12} /> Copy Code
+                </NBButton>
+              </div>
             </div>
 
             {/* Link block */}
-            <div className="bg-surface-950 rounded-xl p-3 border border-surface-700 space-y-2">
-              <p className="text-xs text-surface-500 font-semibold uppercase tracking-wider">Share Link</p>
+            <div style={{ border: 'var(--nb-border)', background: 'var(--nb-gray)' }} className="p-3">
+              <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ fontFamily: 'var(--font-mono)' }}>Share Link</p>
               <div className="flex items-center gap-2">
-                <code className="text-xs text-primary-400 truncate flex-1 min-w-0">{shareLink}</code>
-                <button
-                  onClick={() => copyToClipboard(shareLink, 'Link')}
-                  className="btn-outline btn-sm gap-1 flex-shrink-0"
-                >
+                <code className="text-xs flex-1 min-w-0 truncate" style={{ fontFamily: 'var(--font-mono)', color: '#4A90D9' }}>{shareLink}</code>
+                <NBButton variant="ghost" size="sm" onClick={() => copy(shareLink, 'Link')}>
                   <Copy size={12} /> Copy
-                </button>
+                </NBButton>
               </div>
             </div>
 
-            <button onClick={resetAll} className="btn-ghost w-full text-sm py-2.5 border border-surface-800 gap-2">
+            <NBButton variant="black" className="w-full" onClick={reset}>
               <RefreshCw size={14} /> Share Another File
-            </button>
+            </NBButton>
           </div>
 
         ) : uploadedFile ? (
-          /* ── State: Uploaded — configure & generate share ── */
-          <div className="flex flex-col gap-4 animate-fade-in">
-            {/* Uploaded file chip */}
-            <div className="flex items-center gap-3 p-3 bg-success-500/5 border border-success-500/20 rounded-xl">
-              <CheckCircle size={18} className="text-success-500 flex-shrink-0" />
+          /* ─ State: Config & generate share ─ */
+          <div className="flex flex-col gap-4 nb-slide-up">
+            {/* File chip */}
+            <div className="nb-file-chip">
+              <CheckCircle size={16} style={{ color: 'var(--nb-green)', flexShrink: 0 }} />
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-white truncate">{uploadedFile.originalName}</p>
-                <p className="text-xs text-surface-500">{formatBytes(uploadedFile.size)} · Uploaded</p>
+                <p className="text-sm font-bold truncate" style={{ fontFamily: 'var(--font-heading)' }}>{uploadedFile.originalName}</p>
+                <p className="text-xs font-medium" style={{ fontFamily: 'var(--font-mono)', color: '#6b7280' }}>{formatBytes(uploadedFile.size)}</p>
               </div>
             </div>
 
             {/* Expiry */}
             <div>
-              <label className="label flex items-center gap-1.5">
-                <Clock size={13} /> Expiry
-              </label>
-              <div className="grid grid-cols-3 gap-2">
-                {EXPIRY_OPTIONS.map((o) => (
+              <label className="nb-label flex items-center gap-1.5"><Clock size={12} /> Expiry</label>
+              <div className="flex gap-2">
+                {EXPIRY.map((o) => (
                   <button
                     key={o.v}
                     type="button"
                     onClick={() => setExpiryDays(o.v)}
-                    className={`py-2 rounded-lg text-xs font-medium border transition-all ${
-                      expiryDays === o.v
-                        ? 'border-primary-500 bg-primary-500/15 text-primary-300'
-                        : 'border-surface-700 text-surface-400 hover:border-surface-600 hover:text-surface-300'
-                    }`}
-                  >
-                    {o.l}
-                  </button>
+                    className="flex-1 py-2 text-xs font-bold uppercase tracking-wider transition-all duration-100"
+                    style={{
+                      fontFamily: 'var(--font-heading)',
+                      border: 'var(--nb-border-thin)',
+                      background: expiryDays === o.v ? 'var(--nb-yellow)' : 'white',
+                      boxShadow: expiryDays === o.v ? 'var(--nb-shadow-sm)' : 'none',
+                    }}
+                  >{o.l}</button>
                 ))}
               </div>
             </div>
 
-            {/* Auth-gated controls */}
+            {/* Auth-gated options */}
             {isAuthenticated ? (
-              <div className="space-y-3">
-                <div>
-                  <label className="label flex items-center gap-1.5">
-                    <Shield size={13} /> Password <span className="text-surface-600 font-normal">(optional)</span>
-                  </label>
-                  <input
-                    type="password"
-                    placeholder="Protect with a password"
-                    value={sharePassword}
-                    onChange={(e) => setSharePassword(e.target.value)}
-                    className="input text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="label">Download Limit <span className="text-surface-600 font-normal">(0 = unlimited)</span></label>
-                  <input
-                    type="number"
-                    placeholder="e.g. 5"
-                    value={shareDownloadLimit}
-                    onChange={(e) => setShareDownloadLimit(e.target.value)}
-                    min="0"
-                    className="input text-sm"
-                  />
-                </div>
+              <div className="flex flex-col gap-3">
+                <NBInput
+                  label={<><Shield size={12} className="inline mr-1" />Password (optional)</>}
+                  type="password"
+                  placeholder="Protect with a password"
+                  value={sharePassword}
+                  onChange={(e) => setSharePassword(e.target.value)}
+                />
+                <NBInput
+                  label="Download Limit (0 = unlimited)"
+                  type="number"
+                  placeholder="e.g. 5"
+                  value={dlLimit}
+                  onChange={(e) => setDlLimit(e.target.value)}
+                  min="0"
+                />
               </div>
             ) : (
-              <p className="text-xs text-surface-500 bg-surface-950 p-3 rounded-lg border border-surface-800 leading-relaxed">
-                ℹ️{' '}
-                <Link to="/login" className="text-primary-400 hover:underline">Log in</Link>{' '}
-                to enable password protection and download limits.
+              <p className="text-xs text-gray-500 p-3" style={{ border: '2px solid #E8E5DC', background: 'var(--nb-gray)', fontFamily: 'var(--font-mono)' }}>
+                <Link to="/login" style={{ color: 'var(--nb-blue)', fontWeight: 700 }}>Log in</Link> to enable password protection and download limits.
               </p>
             )}
 
-            <button
-              onClick={handleGenerateShare}
-              disabled={generatingShare}
-              className="btn-primary w-full py-3 text-sm font-semibold"
-            >
-              {generatingShare ? 'Generating...' : 'Generate Share Link'}
-            </button>
+            <NBButton variant="primary" className="w-full" onClick={handleGenerateShare} loading={generating}>
+              Generate Share Link
+            </NBButton>
 
             <button
-              onClick={resetAll}
-              className="btn-ghost text-xs text-surface-500 w-full"
+              onClick={reset}
+              className="text-xs text-gray-500 underline w-full text-center"
+              style={{ fontFamily: 'var(--font-mono)' }}
             >
-              Upload a different file
+              upload a different file
             </button>
           </div>
 
         ) : uploading ? (
-          /* ── State: Uploading ── */
-          <div className="flex flex-col items-center justify-center gap-4 py-8 animate-fade-in flex-1">
-            <div className="relative w-20 h-20">
-              <svg className="w-full h-full -rotate-90" viewBox="0 0 80 80">
-                <circle cx="40" cy="40" r="36" stroke="currentColor" strokeWidth="8" fill="transparent" className="text-surface-800" />
-                <circle
-                  cx="40" cy="40" r="36"
-                  stroke="currentColor" strokeWidth="8" fill="transparent"
-                  strokeDasharray={226.2}
-                  strokeDashoffset={226.2 - (progress / 100) * 226.2}
-                  className="text-primary-500 transition-all duration-300"
-                />
-              </svg>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="font-heading font-bold text-white text-sm">{progress}%</span>
-              </div>
-            </div>
-            <div className="text-center">
-              <p className="text-sm font-semibold text-white">Uploading...</p>
-              <p className="text-xs text-surface-500 truncate max-w-[200px] mt-1">{file?.name}</p>
-            </div>
+          /* ─ State: Uploading ─ */
+          <div className="flex flex-col gap-4 py-4 nb-slide-up flex-1 justify-center">
+            <NBProgress progress={progress} accent="black" label="UPLOADING" />
+            <p className="text-xs text-center font-medium truncate" style={{ fontFamily: 'var(--font-mono)', color: '#6b7280' }}>
+              {file?.name}
+            </p>
           </div>
 
         ) : file ? (
-          /* ── State: File selected ── */
-          <div className="flex flex-col gap-4 animate-fade-in">
+          /* ─ State: File selected ─ */
+          <div className="flex flex-col gap-4 nb-slide-up">
             {/* File chip */}
-            <div className="flex items-start gap-3 p-3 bg-primary-500/5 border border-primary-500/20 rounded-xl">
-              <div className="w-9 h-9 rounded-lg bg-surface-800 flex items-center justify-center flex-shrink-0">
-                <FileIcon size={18} className="text-primary-400" />
-              </div>
+            <div className="nb-file-chip">
+              <UploadCloud size={16} style={{ flexShrink: 0 }} />
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-white truncate">{file.name}</p>
-                <p className="text-xs text-surface-400 mt-0.5">{formatBytes(file.size)}</p>
+                <p className="text-sm font-bold truncate" style={{ fontFamily: 'var(--font-heading)' }}>{file.name}</p>
+                <p className="text-xs" style={{ fontFamily: 'var(--font-mono)', color: '#6b7280' }}>{formatBytes(file.size)}</p>
               </div>
               <button
                 onClick={() => setFile(null)}
-                className="p-1 hover:bg-surface-800 rounded transition-colors text-surface-500 hover:text-white flex-shrink-0"
+                className="p-1 hover:bg-gray-200 transition-colors flex-shrink-0"
+                aria-label="Remove file"
               >
-                <X size={15} />
+                <X size={14} />
               </button>
             </div>
 
-            {/* Quick expiry selector */}
+            {/* Expiry selector */}
             <div>
-              <label className="label flex items-center gap-1.5">
-                <Clock size={13} /> Expiry
-              </label>
-              <div className="grid grid-cols-3 gap-2">
-                {EXPIRY_OPTIONS.map((o) => (
+              <label className="nb-label flex items-center gap-1.5"><Clock size={12} /> Expiry</label>
+              <div className="flex gap-2">
+                {EXPIRY.map((o) => (
                   <button
                     key={o.v}
                     type="button"
                     onClick={() => setExpiryDays(o.v)}
-                    className={`py-2 rounded-lg text-xs font-medium border transition-all ${
-                      expiryDays === o.v
-                        ? 'border-primary-500 bg-primary-500/15 text-primary-300'
-                        : 'border-surface-700 text-surface-400 hover:border-surface-600 hover:text-surface-300'
-                    }`}
-                  >
-                    {o.l}
-                  </button>
+                    className="flex-1 py-2 text-xs font-bold uppercase tracking-wider transition-all duration-100"
+                    style={{
+                      fontFamily: 'var(--font-heading)',
+                      border: 'var(--nb-border-thin)',
+                      background: expiryDays === o.v ? 'var(--nb-yellow)' : 'white',
+                      boxShadow: expiryDays === o.v ? 'var(--nb-shadow-sm)' : 'none',
+                    }}
+                  >{o.l}</button>
                 ))}
               </div>
             </div>
 
-            <button
-              onClick={handleUpload}
-              className="btn-primary w-full py-3 text-sm font-semibold flex items-center justify-center gap-2"
-            >
+            <NBButton variant="primary" className="w-full" onClick={handleUpload}>
               <UploadCloud size={16} /> Upload & Create Share
-            </button>
+            </NBButton>
           </div>
 
         ) : (
-          /* ── State: Idle — Dropzone ── */
-          <div
-            {...getRootProps()}
-            className={`border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all duration-200 flex flex-col items-center justify-center min-h-[180px] flex-1 ${
-              isDragActive
-                ? 'border-primary-500 bg-primary-500/10 scale-[1.01]'
-                : isDragReject
-                ? 'border-danger-500 bg-danger-500/5'
-                : 'border-surface-700 hover:border-surface-500 hover:bg-surface-800/40'
-            }`}
-          >
-            <input {...getInputProps()} />
-            <div className="w-12 h-12 rounded-full bg-surface-800 flex items-center justify-center mb-3">
-              <UploadCloud size={22} className={isDragActive ? 'text-primary-400' : 'text-surface-400'} />
-            </div>
-            <p className="text-sm font-medium text-white mb-1">
-              {isDragActive ? 'Drop it here!' : 'Drop file or click to browse'}
-            </p>
-            <p className="text-xs text-surface-500">Max 100 MB · Any file type</p>
-          </div>
+          /* ─ State: Idle — Dropzone ─ */
+          <NBDropzone
+            onFileAccepted={onFileAccepted}
+            className="flex-1 min-h-[200px]"
+          />
         )}
       </div>
-    </div>
+    </NBCard>
   );
 };
 

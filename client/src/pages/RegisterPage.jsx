@@ -1,13 +1,22 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Eye, EyeOff, Zap, Mail, Lock, User, AlertCircle, CheckCircle } from 'lucide-react';
+import { Eye, EyeOff, Mail, Lock, User, AlertCircle, CheckCircle, Zap } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import toast from 'react-hot-toast';
+import NBButton from '../components/ui/NBButton';
+import NBCard from '../components/ui/NBCard';
 
 const passwordRequirements = [
-  { label: 'At least 8 characters', test: (p) => p.length >= 8 },
-  { label: 'Contains a number', test: (p) => /\d/.test(p) },
-  { label: 'Contains a letter', test: (p) => /[a-zA-Z]/.test(p) },
+  { label: 'At least 8 characters',  test: (p) => p.length >= 8 },
+  { label: 'Contains a number',      test: (p) => /\d/.test(p) },
+  { label: 'Contains a letter',      test: (p) => /[a-zA-Z]/.test(p) },
+];
+
+const PERKS = [
+  'Instant P2P transfers — no server storage',
+  'Secure cloud sharing with expiry dates',
+  'Password-protect your shared files',
+  'Download analytics & management',
 ];
 
 const RegisterPage = () => {
@@ -24,16 +33,12 @@ const RegisterPage = () => {
     const errs = {};
     if (!form.name.trim()) errs.name = 'Name is required';
     else if (form.name.trim().length < 2) errs.name = 'Name must be at least 2 characters';
-
     if (!form.email) errs.email = 'Email is required';
     else if (!/^\S+@\S+\.\S+$/.test(form.email)) errs.email = 'Enter a valid email';
-
     if (!form.password) errs.password = 'Password is required';
     else if (form.password.length < 8) errs.password = 'Password must be at least 8 characters';
-
     if (!form.confirmPassword) errs.confirmPassword = 'Please confirm your password';
     else if (form.password !== form.confirmPassword) errs.confirmPassword = 'Passwords do not match';
-
     return errs;
   };
 
@@ -47,15 +52,9 @@ const RegisterPage = () => {
     e.preventDefault();
     const errs = validate();
     if (Object.keys(errs).length > 0) return setErrors(errs);
-
     setLoading(true);
     try {
-      await register({
-        name: form.name.trim(),
-        email: form.email,
-        password: form.password,
-        confirmPassword: form.confirmPassword,
-      });
+      await register({ name: form.name.trim(), email: form.email, password: form.password, confirmPassword: form.confirmPassword });
       toast.success('Account created! Welcome to TransferX 🎉');
       navigate('/dashboard', { replace: true });
     } catch (err) {
@@ -73,215 +72,144 @@ const RegisterPage = () => {
     }
   };
 
-  return (
-    <div className="min-h-screen bg-surface-950 flex">
-      {/* Left Panel — Branding */}
-      <div className="hidden lg:flex flex-col justify-between w-1/2 bg-gradient-to-br from-surface-900 to-surface-950 border-r border-surface-800 p-12 relative overflow-hidden">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px] rounded-full bg-secondary-500/5 blur-3xl pointer-events-none" />
+  const FieldError = ({ msg }) => msg ? (
+    <p className="mt-1 text-xs font-bold flex items-center gap-1" style={{ color: 'var(--nb-pink)', fontFamily: 'var(--font-mono)' }}>
+      <AlertCircle size={11} /> {msg}
+    </p>
+  ) : null;
 
-        <div className="flex items-center gap-3 relative z-10">
-          <div className="w-9 h-9 rounded-xl bg-gradient-brand flex items-center justify-center shadow-glow-blue">
-            <Zap size={20} className="text-white" />
+  const inputCls = (field) => `nb-input ${errors[field] ? 'nb-input-error' : ''}`;
+
+  return (
+    <div className="nb-page flex min-h-screen">
+
+      {/* ─── Left branding panel ─── */}
+      <div
+        className="hidden lg:flex flex-col justify-between w-5/12 p-12"
+        style={{ background: 'var(--nb-black)', borderRight: 'var(--nb-border)' }}
+      >
+        {/* Logo */}
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 flex items-center justify-center" style={{ background: 'var(--nb-yellow)', border: '2px solid white' }}>
+            <Zap size={20} style={{ color: 'var(--nb-black)' }} fill="var(--nb-black)" />
           </div>
-          <span className="font-heading font-bold text-xl text-white">TransferX</span>
+          <span className="text-xl font-bold uppercase tracking-wider text-white" style={{ fontFamily: 'var(--font-heading)' }}>
+            TransferX
+          </span>
         </div>
 
-        <div className="relative z-10 space-y-6">
-          <h2 className="text-2xl font-heading font-bold text-white leading-snug">
-            Join thousands who share
-            <br />
-            <span className="gradient-text">files the smarter way.</span>
+        {/* Perks */}
+        <div>
+          <h2 className="text-2xl font-extrabold text-white mb-6 leading-tight" style={{ fontFamily: 'var(--font-display)' }}>
+            Join thousands who share files{' '}
+            <span style={{ background: 'var(--nb-yellow)', color: 'var(--nb-black)', padding: '0 4px' }}>the smarter way.</span>
           </h2>
-          <ul className="space-y-3 text-sm text-surface-400">
-            {[
-              'Instant P2P transfers — no server storage',
-              'Secure cloud sharing with expiry dates',
-              'Password-protect your shared files',
-              'Download analytics & management',
-            ].map((item) => (
-              <li key={item} className="flex items-center gap-2.5">
-                <CheckCircle size={16} className="text-success-500 flex-shrink-0" />
-                {item}
+          <ul className="space-y-3">
+            {PERKS.map((p) => (
+              <li key={p} className="flex items-start gap-2.5">
+                <div className="w-5 h-5 flex items-center justify-center flex-shrink-0 mt-0.5" style={{ background: 'var(--nb-green)', border: '2px solid white' }}>
+                  <CheckCircle size={12} color="white" />
+                </div>
+                <span className="text-sm font-medium text-gray-300" style={{ fontFamily: 'var(--font-body)' }}>{p}</span>
               </li>
             ))}
           </ul>
         </div>
 
-        <p className="relative z-10 text-sm text-surface-600">© 2026 TransferX. All rights reserved.</p>
+        <p className="text-xs" style={{ fontFamily: 'var(--font-mono)', color: '#475569' }}>© 2026 TransferX. All rights reserved.</p>
       </div>
 
-      {/* Right Panel — Form */}
-      <div className="flex-1 flex flex-col justify-center items-center px-6 py-12">
+      {/* ─── Right form panel ─── */}
+      <div className="flex-1 flex flex-col justify-center items-center px-6 py-12" style={{ background: 'var(--nb-bg)', overflowY: 'auto' }}>
         {/* Mobile logo */}
         <div className="flex items-center gap-2 mb-8 lg:hidden">
-          <div className="w-8 h-8 rounded-lg bg-gradient-brand flex items-center justify-center">
-            <Zap size={16} className="text-white" />
+          <div className="w-8 h-8 flex items-center justify-center" style={{ background: 'var(--nb-black)' }}>
+            <Zap size={16} style={{ color: 'var(--nb-yellow)' }} fill="var(--nb-yellow)" />
           </div>
-          <span className="font-heading font-bold text-lg text-white">TransferX</span>
+          <span className="font-bold uppercase tracking-wider" style={{ fontFamily: 'var(--font-heading)' }}>TransferX</span>
         </div>
 
-        <div className="w-full max-w-md animate-fade-in">
-          <div className="mb-8">
-            <h1 className="text-3xl font-heading font-bold text-white mb-2">Create account</h1>
-            <p className="text-surface-400">Free forever. No credit card required.</p>
+        <NBCard className="w-full max-w-md">
+          {/* Card header */}
+          <div className="nb-card-header-black">
+            <h1 className="font-bold uppercase tracking-wider text-white" style={{ fontFamily: 'var(--font-heading)' }}>
+              Create Account
+            </h1>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-            {/* Name */}
-            <div>
-              <label htmlFor="name" className="label">Full name</label>
-              <div className="relative">
-                <User size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-surface-500 pointer-events-none" />
-                <input
-                  id="name"
-                  name="name"
-                  type="text"
-                  autoComplete="name"
-                  value={form.name}
-                  onChange={handleChange}
-                  placeholder="John Doe"
-                  className={`input pl-10 ${errors.name ? 'input-error' : ''}`}
-                />
-              </div>
-              {errors.name && (
-                <p className="mt-1.5 text-xs text-danger-500 flex items-center gap-1">
-                  <AlertCircle size={12} /> {errors.name}
-                </p>
-              )}
-            </div>
-
-            {/* Email */}
-            <div>
-              <label htmlFor="email" className="label">Email address</label>
-              <div className="relative">
-                <Mail size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-surface-500 pointer-events-none" />
-                <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  autoComplete="email"
-                  value={form.email}
-                  onChange={handleChange}
-                  placeholder="you@example.com"
-                  className={`input pl-10 ${errors.email ? 'input-error' : ''}`}
-                />
-              </div>
-              {errors.email && (
-                <p className="mt-1.5 text-xs text-danger-500 flex items-center gap-1">
-                  <AlertCircle size={12} /> {errors.email}
-                </p>
-              )}
-            </div>
-
-            {/* Password */}
-            <div>
-              <label htmlFor="password" className="label">Password</label>
-              <div className="relative">
-                <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-surface-500 pointer-events-none" />
-                <input
-                  id="password"
-                  name="password"
-                  type={showPassword ? 'text' : 'password'}
-                  autoComplete="new-password"
-                  value={form.password}
-                  onChange={handleChange}
-                  placeholder="Min. 8 characters"
-                  className={`input pl-10 pr-10 ${errors.password ? 'input-error' : ''}`}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((p) => !p)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-surface-500 hover:text-surface-300 transition-colors"
-                >
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-              </div>
-              {errors.password && (
-                <p className="mt-1.5 text-xs text-danger-500 flex items-center gap-1">
-                  <AlertCircle size={12} /> {errors.password}
-                </p>
-              )}
-
-              {/* Password requirements */}
-              {form.password && (
-                <div className="mt-2 space-y-1">
-                  {passwordRequirements.map((req) => (
-                    <p
-                      key={req.label}
-                      className={`text-xs flex items-center gap-1.5 ${
-                        req.test(form.password) ? 'text-success-500' : 'text-surface-500'
-                      }`}
-                    >
-                      <CheckCircle size={11} />
-                      {req.label}
-                    </p>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Confirm Password */}
-            <div>
-              <label htmlFor="confirmPassword" className="label">Confirm password</label>
-              <div className="relative">
-                <Lock size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-surface-500 pointer-events-none" />
-                <input
-                  id="confirmPassword"
-                  name="confirmPassword"
-                  type={showConfirm ? 'text' : 'password'}
-                  autoComplete="new-password"
-                  value={form.confirmPassword}
-                  onChange={handleChange}
-                  placeholder="Repeat your password"
-                  className={`input pl-10 pr-10 ${errors.confirmPassword ? 'input-error' : ''}`}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirm((p) => !p)}
-                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-surface-500 hover:text-surface-300 transition-colors"
-                >
-                  {showConfirm ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-              </div>
-              {errors.confirmPassword && (
-                <p className="mt-1.5 text-xs text-danger-500 flex items-center gap-1">
-                  <AlertCircle size={12} /> {errors.confirmPassword}
-                </p>
-              )}
-            </div>
-
-            {/* Terms */}
-            <p className="text-xs text-surface-500 leading-relaxed">
-              By creating an account, you agree to our{' '}
-              <a href="#" className="text-primary-400 hover:underline">Terms of Service</a>{' '}
-              and{' '}
-              <a href="#" className="text-primary-400 hover:underline">Privacy Policy</a>.
+          <div className="p-6">
+            <p className="text-sm mb-5" style={{ fontFamily: 'var(--font-mono)', color: '#6b7280' }}>
+              Free forever. No credit card required.
             </p>
 
-            {/* Submit */}
-            <button
-              type="submit"
-              disabled={loading}
-              className="btn-primary w-full py-3 text-base"
-            >
-              {loading ? (
-                <span className="flex items-center justify-center gap-2">
-                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Creating account...
-                </span>
-              ) : (
-                'Create account'
-              )}
-            </button>
-          </form>
+            <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
+              {/* Name */}
+              <div>
+                <label htmlFor="name" className="nb-label flex items-center gap-1.5"><User size={12} /> Full Name</label>
+                <input id="name" name="name" type="text" autoComplete="name" value={form.name} onChange={handleChange} placeholder="John Doe" className={inputCls('name')} />
+                <FieldError msg={errors.name} />
+              </div>
 
-          <p className="text-center text-sm text-surface-400 mt-6">
-            Already have an account?{' '}
-            <Link to="/login" className="text-primary-400 hover:text-primary-300 font-medium transition-colors">
-              Sign in
-            </Link>
-          </p>
-        </div>
+              {/* Email */}
+              <div>
+                <label htmlFor="email" className="nb-label flex items-center gap-1.5"><Mail size={12} /> Email Address</label>
+                <input id="email" name="email" type="email" autoComplete="email" value={form.email} onChange={handleChange} placeholder="you@example.com" className={inputCls('email')} />
+                <FieldError msg={errors.email} />
+              </div>
+
+              {/* Password */}
+              <div>
+                <label htmlFor="password" className="nb-label flex items-center gap-1.5"><Lock size={12} /> Password</label>
+                <div className="relative">
+                  <input id="password" name="password" type={showPassword ? 'text' : 'password'} autoComplete="new-password" value={form.password} onChange={handleChange} placeholder="Min. 8 characters" className={`${inputCls('password')} pr-12`} />
+                  <button type="button" onClick={() => setShowPassword((p) => !p)} className="absolute right-3 top-1/2 -translate-y-1/2" aria-label={showPassword ? 'Hide' : 'Show'}>
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+                <FieldError msg={errors.password} />
+                {form.password && (
+                  <div className="mt-2 flex flex-col gap-1">
+                    {passwordRequirements.map((req) => (
+                      <p key={req.label} className="text-xs flex items-center gap-1.5" style={{ fontFamily: 'var(--font-mono)', color: req.test(form.password) ? 'var(--nb-green)' : '#9ca3af' }}>
+                        <CheckCircle size={11} /> {req.label}
+                      </p>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Confirm Password */}
+              <div>
+                <label htmlFor="confirmPassword" className="nb-label flex items-center gap-1.5"><Lock size={12} /> Confirm Password</label>
+                <div className="relative">
+                  <input id="confirmPassword" name="confirmPassword" type={showConfirm ? 'text' : 'password'} autoComplete="new-password" value={form.confirmPassword} onChange={handleChange} placeholder="Repeat your password" className={`${inputCls('confirmPassword')} pr-12`} />
+                  <button type="button" onClick={() => setShowConfirm((p) => !p)} className="absolute right-3 top-1/2 -translate-y-1/2" aria-label={showConfirm ? 'Hide' : 'Show'}>
+                    {showConfirm ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+                <FieldError msg={errors.confirmPassword} />
+              </div>
+
+              {/* Terms */}
+              <p className="text-xs" style={{ fontFamily: 'var(--font-mono)', color: '#6b7280' }}>
+                By creating an account, you agree to our{' '}
+                <a href="#" className="underline font-bold" style={{ color: 'var(--nb-black)' }}>Terms</a> and{' '}
+                <a href="#" className="underline font-bold" style={{ color: 'var(--nb-black)' }}>Privacy Policy</a>.
+              </p>
+
+              <NBButton type="submit" variant="primary" loading={loading} className="w-full">
+                Create Account
+              </NBButton>
+            </form>
+
+            <div className="nb-divider text-xs font-bold my-5" style={{ fontFamily: 'var(--font-mono)' }}>OR</div>
+
+            <p className="text-center text-sm" style={{ fontFamily: 'var(--font-mono)', color: '#6b7280' }}>
+              Already have an account?{' '}
+              <Link to="/login" className="font-bold underline" style={{ color: 'var(--nb-black)' }}>Sign in →</Link>
+            </p>
+          </div>
+        </NBCard>
       </div>
     </div>
   );

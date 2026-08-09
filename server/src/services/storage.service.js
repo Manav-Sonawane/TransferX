@@ -51,7 +51,7 @@ const buildAttachmentFilename = (file) => {
  * Generate a Cloudinary download URL that forces the browser to save the file
  * with the correct filename and extension.
  *
- * @param {Object} file - MongoDB file document
+ * @param {Object} file - MongoDB file documents
  *   Expected: { publicId, resourceType, format, originalName }
  * @returns {string} Cloudinary download URL
  */
@@ -70,7 +70,7 @@ const generateDownloadUrl = (file) => {
         // For images and videos, we CAN specify a custom attachment name.
         const attachmentName = buildAttachmentFilename(file);
         options.flags = `attachment:${attachmentName}`;
-        
+
         // Pin the format so Cloudinary doesn't transcode it on download
         if (file.format) {
             options.format = file.format;

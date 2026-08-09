@@ -1,15 +1,19 @@
 import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { shareService } from '../services/share.service';
-import { File as FileIcon, Clock, ShieldAlert, Download, AlertCircle, RefreshCw, KeyRound } from 'lucide-react';
+import { File as FileIcon, Clock, ShieldAlert, Download, AlertCircle, RefreshCw, KeyRound, CheckCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
+import NBCard from '../components/ui/NBCard';
+import NBButton from '../components/ui/NBButton';
+import NBBadge from '../components/ui/NBBadge';
 
 const DownloadPage = () => {
   const { code } = useParams();
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading]     = useState(true);
   const [shareData, setShareData] = useState(null);
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [password, setPassword]   = useState('');
+  const [error, setError]         = useState('');
+  const [downloaded, setDownloaded] = useState(false);
 
   const fetchShareDetails = async () => {
     setLoading(true);
@@ -25,25 +29,17 @@ const DownloadPage = () => {
   };
 
   useEffect(() => {
-    if (code) {
-      fetchShareDetails();
-    }
+    if (code) fetchShareDetails();
   }, [code]);
 
   const handleDownload = () => {
     if (!shareData) return;
-    
     if (shareData.hasPassword && !password) {
-      toast.error('This file is password protected. Enter the password to download.');
+      toast.error('Enter the password to download.');
       return;
     }
-
-    // Build the secure download URL targeting the backend redirect endpoint
-    const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-    const downloadUrl = `${apiBaseUrl}/shares/${code}/download${password ? `?password=${encodeURIComponent(password)}` : ''}`;
-    
-    // Use a hidden anchor click so the page doesn't navigate away during the
-    // backend → Cloudinary redirect chain.
+    const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+    const downloadUrl = `${apiBase}/shares/${code}/download${password ? `?password=${encodeURIComponent(password)}` : ''}`;
     const a = document.createElement('a');
     a.href = downloadUrl;
     a.style.display = 'none';
@@ -51,41 +47,58 @@ const DownloadPage = () => {
     a.click();
     document.body.removeChild(a);
     toast.success('Download starting...');
+    setDownloaded(true);
   };
 
-  // Helper to format bytes
-  const formatBytes = (bytes, decimals = 2) => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const dm = decimals < 0 ? 0 : decimals;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const formatBytes = (bytes, d = 2) => {
+    if (!bytes || bytes === 0) return '0 B';
+    const k = 1024, s = ['B', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(d))} ${s[i]}`;
   };
 
+  /* ── Loading ── */
   if (loading) {
     return (
-      <div className="min-h-screen bg-surface-950 flex justify-center items-center">
-        <RefreshCw className="animate-spin text-primary-500" size={32} />
+      <div className="nb-page min-h-screen flex justify-center items-center">
+        <div className="flex flex-col items-center gap-4">
+          <RefreshCw className="animate-spin" size={32} />
+          <p className="text-sm font-bold uppercase tracking-widest" style={{ fontFamily: 'var(--font-mono)', color: '#6b7280' }}>
+            Loading share...
+          </p>
+        </div>
       </div>
     );
   }
 
+  /* ── Error ── */
   if (error) {
     return (
-      <div className="min-h-screen bg-surface-950 flex flex-col justify-center items-center px-4">
-        <div className="w-full max-w-md card p-8 border-danger-500/20 bg-danger-500/5 text-center space-y-6">
-          <div className="w-16 h-16 rounded-full bg-danger-500/10 flex items-center justify-center mx-auto text-danger-500">
-            <ShieldAlert size={32} />
+      <div className="nb-page min-h-screen flex flex-col justify-center items-center px-4">
+        <NBCard className="w-full max-w-md text-center">
+          <div className="nb-card-header-black">
+            <span className="text-xs font-bold uppercase tracking-widest text-white" style={{ fontFamily: 'var(--font-mono)' }}>
+              Error
+            </span>
           </div>
-          <div>
-            <h1 className="text-xl font-heading font-bold text-white mb-2">Access Error</h1>
-            <p className="text-surface-400 text-sm">{error}</p>
+          <div className="p-8 flex flex-col items-center gap-5">
+            <div
+              className="w-16 h-16 flex items-center justify-center"
+              style={{ background: 'var(--nb-pink)', border: 'var(--nb-border)' }}
+            >
+              <ShieldAlert size={32} color="white" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold uppercase tracking-wider mb-2" style={{ fontFamily: 'var(--font-heading)' }}>
+                Access Error
+              </h1>
+              <p className="text-sm" style={{ fontFamily: 'var(--font-mono)', color: '#6b7280' }}>{error}</p>
+            </div>
+            <Link to="/" className="block w-full">
+              <NBButton variant="ghost" className="w-full">← Back to Home</NBButton>
+            </Link>
           </div>
-          <Link to="/access" className="btn-secondary w-full block py-2.5">
-            Back to Access Page
-          </Link>
-        </div>
+        </NBCard>
       </div>
     );
   }
@@ -93,60 +106,116 @@ const DownloadPage = () => {
   const { file, hasPassword, expiry, downloadLimit, downloadCount } = shareData;
 
   return (
-    <div className="min-h-screen bg-surface-950 flex flex-col justify-center items-center px-4 relative overflow-hidden">
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[400px] h-[400px] rounded-full bg-primary-500/5 blur-3xl pointer-events-none" />
+    <div className="nb-page min-h-screen flex flex-col justify-center items-center px-4 py-10">
+      <NBCard className="w-full max-w-md">
 
-      <div className="w-full max-w-md card p-8 border-surface-800 bg-surface-900/60 backdrop-blur-xl animate-fade-in text-center space-y-6">
-        <div className="w-16 h-16 rounded-2xl bg-surface-800 flex items-center justify-center mx-auto text-primary-400">
-          <FileIcon size={32} />
-        </div>
-
-        <div>
-          <h1 className="text-xl font-heading font-bold text-white mb-1 truncate">{file?.originalName}</h1>
-          <p className="text-surface-400 text-sm">{formatBytes(file?.size)} • {file?.extension.toUpperCase()}</p>
-        </div>
-
-        <div className="space-y-3 bg-surface-950/60 p-4 rounded-xl border border-surface-800 text-left text-sm text-surface-400">
+        {/* Header strip */}
+        <div className="nb-card-header-black">
           <div className="flex items-center gap-2">
-            <Clock size={16} className="text-surface-500" />
-            <span>Expires: {new Date(expiry).toLocaleDateString()}</span>
+            <Download size={14} color="white" />
+            <span className="text-xs font-bold uppercase tracking-widest text-white" style={{ fontFamily: 'var(--font-mono)' }}>
+              File Download
+            </span>
           </div>
-          {downloadLimit > 0 && (
-            <div className="flex items-center gap-2">
-              <AlertCircle size={16} className="text-surface-500" />
-              <span>Downloads: {downloadCount} / {downloadLimit} max</span>
+          <NBBadge color="green">Secure</NBBadge>
+        </div>
+
+        <div className="p-6 flex flex-col gap-5">
+
+          {/* File icon + name */}
+          <div className="flex flex-col items-center text-center gap-3">
+            <div
+              className="w-16 h-16 flex items-center justify-center"
+              style={{ background: 'var(--nb-black)', border: 'var(--nb-border)' }}
+            >
+              <FileIcon size={32} color="var(--nb-yellow)" />
+            </div>
+            <div>
+              <p
+                className="font-bold text-lg truncate max-w-[300px]"
+                style={{ fontFamily: 'var(--font-heading)' }}
+              >
+                {file?.originalName}
+              </p>
+              <p className="text-xs mt-1" style={{ fontFamily: 'var(--font-mono)', color: '#6b7280' }}>
+                {formatBytes(file?.size)}{file?.extension ? ` · ${file.extension.toUpperCase()}` : ''}
+              </p>
+            </div>
+          </div>
+
+          {/* Metadata */}
+          <div style={{ border: 'var(--nb-border)', background: 'var(--nb-gray)' }}>
+            <div className="px-4 py-2 border-b-[2px] border-black">
+              <span className="text-xs font-bold uppercase tracking-widest" style={{ fontFamily: 'var(--font-mono)' }}>Details</span>
+            </div>
+            <div className="p-3 space-y-0">
+              {expiry && (
+                <div className="nb-meta-row">
+                  <span className="font-bold opacity-60 flex items-center gap-1"><Clock size={11} /> EXPIRES</span>
+                  <span>{new Date(expiry).toLocaleDateString()}</span>
+                </div>
+              )}
+              {downloadLimit > 0 && (
+                <div className="nb-meta-row">
+                  <span className="font-bold opacity-60 flex items-center gap-1"><AlertCircle size={11} /> DOWNLOADS</span>
+                  <span>{downloadCount} / {downloadLimit}</span>
+                </div>
+              )}
+              <div className="nb-meta-row">
+                <span className="font-bold opacity-60">CODE</span>
+                <span className="tracking-widest" style={{ fontFamily: 'var(--font-mono)' }}>{code}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Password field */}
+          {hasPassword && (
+            <div>
+              <label className="nb-label flex items-center gap-1.5">
+                <KeyRound size={12} /> Password Required
+              </label>
+              <input
+                type="password"
+                placeholder="Enter share password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleDownload()}
+                className="nb-input text-center"
+              />
             </div>
           )}
+
+          {/* Download button / success state */}
+          {downloaded ? (
+            <div
+              className="flex items-center gap-3 p-4"
+              style={{ background: 'var(--nb-green)', border: 'var(--nb-border)' }}
+            >
+              <CheckCircle size={20} color="white" />
+              <div>
+                <p className="font-bold text-white uppercase tracking-wider text-sm" style={{ fontFamily: 'var(--font-heading)' }}>
+                  Download Started!
+                </p>
+                <p className="text-xs text-white/80 mt-0.5" style={{ fontFamily: 'var(--font-mono)' }}>
+                  Check your downloads folder.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <NBButton variant="primary" className="w-full" onClick={handleDownload}>
+              <Download size={18} /> Download File
+            </NBButton>
+          )}
+
+          <Link
+            to="/"
+            className="text-xs text-center underline hover:opacity-70 transition-opacity"
+            style={{ fontFamily: 'var(--font-mono)', color: '#6b7280' }}
+          >
+            ← Back to home
+          </Link>
         </div>
-
-        {hasPassword && (
-          <div className="space-y-2 text-left">
-            <label className="label flex items-center gap-2">
-              <KeyRound size={14} className="text-primary-400" />
-              This file requires a password:
-            </label>
-            <input
-              type="password"
-              placeholder="Enter share password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="input text-center"
-            />
-          </div>
-        )}
-
-        <button
-          onClick={handleDownload}
-          className="btn-primary w-full py-3 flex items-center justify-center gap-2"
-        >
-          <Download size={18} />
-          Download File
-        </button>
-
-        <Link to="/access" className="text-sm text-surface-400 hover:text-white transition-colors block">
-          Enter different code
-        </Link>
-      </div>
+      </NBCard>
     </div>
   );
 };

@@ -57,6 +57,7 @@ const getShare = async (req, res, next) => {
     }
 };
 
+const http = require('http');
 const https = require('https');
 
 /**
@@ -78,9 +79,9 @@ const downloadShare = async (req, res, next) => {
             userAgent
         );
 
-        const downloadUrl = storageService.generateDownloadUrl(file);
+        const initialUrl = storageService.generateDownloadUrl(file);
 
-        console.log(`[DEBUG] Proxying download for ${file.originalName} → ${downloadUrl}`);
+        console.log(`[DEBUG] Proxying download for ${file.originalName} → ${initialUrl}`);
 
         // Sanitize filename to prevent header injection errors
         const safeName = file.originalName.replace(/[^\w\d_.-]/g, '_');
@@ -88,25 +89,50 @@ const downloadShare = async (req, res, next) => {
         // Set exact content-disposition so the browser saves it with the correct name/extension
         res.setHeader('Content-Disposition', `attachment; filename="${safeName}"`);
 
-        // Proxy the stream
-        https.get(downloadUrl, (cloudinaryRes) => {
-            // Forward the content type and length if Cloudinary provides them
-            if (cloudinaryRes.headers['content-type']) {
-                res.setHeader('Content-Type', cloudinaryRes.headers['content-type']);
-            } else {
-                res.setHeader('Content-Type', 'application/octet-stream');
+        // Recursive function to fetch and follow redirects
+        const fetchFile = (downloadUrl, redirectCount = 0) => {
+            if (redirectCount > 5) {
+                if (!res.headersSent) res.status(500).json({ success: false, message: 'Too many redirects from storage provider' });
+                return;
             }
-            if (cloudinaryRes.headers['content-length']) {
-                res.setHeader('Content-Length', cloudinaryRes.headers['content-length']);
-            }
-            
-            cloudinaryRes.pipe(res);
-        }).on('error', (err) => {
-            console.error('Download stream error:', err);
-            if (!res.headersSent) {
-                res.status(500).json({ success: false, message: 'Failed to stream file from storage' });
-            }
-        });
+
+            const client = downloadUrl.startsWith('https') ? https : http;
+
+            client.get(downloadUrl, (cloudinaryRes) => {
+                // Follow redirects (301, 302, 303, 307, 308)
+                if (cloudinaryRes.statusCode >= 300 && cloudinaryRes.statusCode < 400 && cloudinaryRes.headers.location) {
+                    // Drain the stream to free up memory before redirecting
+                    cloudinaryRes.resume(); 
+                    return fetchFile(cloudinaryRes.headers.location, redirectCount + 1);
+                }
+
+                if (cloudinaryRes.statusCode !== 200) {
+                    console.error('Storage provider returned status:', cloudinaryRes.statusCode);
+                    cloudinaryRes.resume();
+                    if (!res.headersSent) res.status(502).json({ success: false, message: 'Storage provider error' });
+                    return;
+                }
+
+                // Forward the content type and length
+                if (cloudinaryRes.headers['content-type']) {
+                    res.setHeader('Content-Type', cloudinaryRes.headers['content-type']);
+                } else {
+                    res.setHeader('Content-Type', 'application/octet-stream');
+                }
+                if (cloudinaryRes.headers['content-length']) {
+                    res.setHeader('Content-Length', cloudinaryRes.headers['content-length']);
+                }
+                
+                cloudinaryRes.pipe(res);
+            }).on('error', (err) => {
+                console.error('Download stream error:', err);
+                if (!res.headersSent) {
+                    res.status(500).json({ success: false, message: 'Failed to stream file from storage' });
+                }
+            });
+        };
+
+        fetchFile(initialUrl);
         
     } catch (error) {
         if (!res.headersSent) {

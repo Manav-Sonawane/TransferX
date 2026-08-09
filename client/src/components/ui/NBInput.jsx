@@ -10,7 +10,7 @@ const NBInput = forwardRef(({
   id,
   ...props
 }, ref) => {
-  const inputId = id || label?.toLowerCase().replace(/\s+/g, '-');
+  const inputId = id || (typeof label === 'string' ? label.toLowerCase().replace(/\s+/g, '-') : undefined);
   return (
     <div className="w-full">
       {label && (

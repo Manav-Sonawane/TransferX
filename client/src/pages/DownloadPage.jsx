@@ -42,8 +42,14 @@ const DownloadPage = () => {
     const apiBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
     const downloadUrl = `${apiBaseUrl}/shares/${code}/download${password ? `?password=${encodeURIComponent(password)}` : ''}`;
     
-    // Navigate in current window to trigger the download redirect seamlessly
-    window.location.href = downloadUrl;
+    // Use a hidden anchor click so the page doesn't navigate away during the
+    // backend → Cloudinary redirect chain.
+    const a = document.createElement('a');
+    a.href = downloadUrl;
+    a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
     toast.success('Download starting...');
   };
 

@@ -6,24 +6,17 @@ const cloudinary = require('../config/cloudinary');
  * @returns {string} The downloadable URL
  */
 const generateDownloadUrl = (file) => {
-    const path = require('path');
-
-    // Strip the extension — Cloudinary's URL parser treats dots inside fl_attachment
-    // as format specifiers, causing a 400 Bad Request. Cloudinary appends the
-    // correct extension automatically from the stored resource.
-    const baseName = path.parse(file.originalName || file.fileName || 'download').name;
-
-    // Replace spaces, commas, slashes and any remaining special chars with underscores
-    const safeFileName = baseName.replace(/[\s,/\\:*?"<>|]/g, '_');
-
     const options = {
         resource_type: file.resourceType,
         secure: true,
-        // Force browser to download instead of displaying inline
-        flags: `attachment:${safeFileName}`,
+        // 'attachment' (no filename) forces a browser download without specifying a
+        // custom name. Cloudinary uses the public_id's own filename, which already
+        // includes the correct extension for raw resources. Avoids all fl_attachment
+        // parsing errors caused by dots, spaces, or special characters in filenames.
+        flags: 'attachment',
     };
 
-    // Non-raw types need the format hint so the URL has the correct extension
+    // For image/video resources, append the correct format extension to the URL
     if (file.resourceType !== 'raw' && file.format) {
         options.format = file.format;
     }

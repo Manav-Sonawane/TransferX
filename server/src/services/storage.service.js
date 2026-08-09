@@ -56,18 +56,25 @@ const buildAttachmentFilename = (file) => {
  * @returns {string} Cloudinary download URL
  */
 const generateDownloadUrl = (file) => {
-    const attachmentName = buildAttachmentFilename(file);
-
     const options = {
         resource_type: file.resourceType,
         secure: true,
-        // fl_attachment:<safe_name> → Content-Disposition: attachment; filename="safe_name"
-        flags: `attachment:${attachmentName}`,
     };
 
-    // For image/video resources pin the format so Cloudinary doesn't transcode.
-    if (file.resourceType !== 'raw' && file.format) {
-        options.format = file.format;
+    if (file.resourceType === 'raw') {
+        // Cloudinary DOES NOT support custom attachment names for raw files.
+        // Doing `fl_attachment:name` for a raw file throws a 400 Bad Request.
+        // For raw files, the extension is already preserved in the public_id during upload.
+        options.flags = 'attachment';
+    } else {
+        // For images and videos, we CAN specify a custom attachment name.
+        const attachmentName = buildAttachmentFilename(file);
+        options.flags = `attachment:${attachmentName}`;
+        
+        // Pin the format so Cloudinary doesn't transcode it on download
+        if (file.format) {
+            options.format = file.format;
+        }
     }
 
     return cloudinary.url(file.publicId, options);

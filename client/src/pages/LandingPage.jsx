@@ -89,7 +89,7 @@ const LandingPage = () => {
 
       {/* ─── Three Operation Cards ──────────────────── */}
       <main className="page-container pb-16 flex-1">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-start">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-stretch">
           <P2PCard />
           <ShareCard />
           <AccessCard />

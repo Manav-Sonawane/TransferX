@@ -1,53 +1,71 @@
 const cloudinary = require('../config/cloudinary');
 
 /**
- * Sanitize a filename so it is safe to pass as a Cloudinary fl_attachment value.
- * Cloudinary's fl_attachment parameter must not contain: / : * ? " < > | \
- * We also replace spaces with underscores to avoid URL issues.
- * @param {string} filename
- * @returns {string}
+ * Produce a URL-path-safe filename for the Cloudinary fl_attachment parameter.
+ *
+ * Cloudinary embeds the attachment name directly into the URL path, e.g.:
+ *   /fl_attachment:my_safe_name.pdf/
+ * Any character that isn't alphanumeric, a dot, a hyphen, or an underscore will
+ * break the URL and result in a 400 error.
+ *
+ * Strategy:
+ *  1. Separate the extension from the base name.
+ *  2. Replace every non-safe character (including spaces) with underscore.
+ *  3. Collapse consecutive underscores and trim leading/trailing ones.
+ *  4. Limit total length to avoid Cloudinary parameter size limits.
+ *  5. Guarantee an extension so the OS knows the file type.
  */
-const sanitizeFilename = (filename) => {
-    return filename
-        .replace(/[/\\:*?"<>|]/g, '_')   // strip forbidden chars
-        .replace(/\s+/g, '_')             // spaces → underscores
-        .replace(/_{2,}/g, '_')           // collapse multiple underscores
-        .slice(0, 180);                   // Cloudinary has a parameter length limit
+const buildAttachmentFilename = (file) => {
+    const originalName = file.originalName || '';
+
+    // ── Extract extension ──────────────────────────────────────────
+    // Prefer the stored `format` field (always reliable for Cloudinary resources).
+    // Fall back to whatever is at the end of originalName.
+    let ext = '';
+    if (file.format) {
+        ext = file.format.toLowerCase().replace(/[^a-z0-9]/g, '');
+    } else {
+        const dotIdx = originalName.lastIndexOf('.');
+        if (dotIdx > 0) {
+            ext = originalName.slice(dotIdx + 1).toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 10);
+        }
+    }
+
+    // ── Build a safe base name ─────────────────────────────────────
+    const rawBase = ext
+        ? originalName.slice(0, originalName.lastIndexOf('.'))   // strip ext
+        : originalName;
+
+    const safeBase = rawBase
+        .replace(/\s+/g, '_')             // spaces → underscore
+        .replace(/[^a-zA-Z0-9_-]/g, '_') // everything else unsafe → underscore
+        .replace(/_{2,}/g, '_')           // collapse multiples
+        .replace(/^_+|_+$/g, '')          // trim leading/trailing underscores
+        .slice(0, 80)                     // max 80-char base
+        || 'file';                        // ultimate fallback
+
+    return ext ? `${safeBase}.${ext}` : safeBase;
 };
 
 /**
  * Generate a Cloudinary download URL that forces the browser to save the file
- * with the original filename (including its extension).
+ * with the correct filename and extension.
  *
- * @param {Object} file - The file document from MongoDB
- *   Expected fields: publicId, resourceType, format, originalName
- * @returns {string} The downloadable Cloudinary URL
+ * @param {Object} file - MongoDB file document
+ *   Expected: { publicId, resourceType, format, originalName }
+ * @returns {string} Cloudinary download URL
  */
 const generateDownloadUrl = (file) => {
-    // Build a safe attachment filename that includes the original extension.
-    // We prefer file.originalName which already has the user's full filename
-    // (e.g. "report.pdf", "image.png"). Fallback to publicId basename + format.
-    let attachmentName;
-    if (file.originalName) {
-        attachmentName = sanitizeFilename(file.originalName);
-    } else if (file.format) {
-        // Derive from the publicId's last segment + the stored format extension
-        const base = file.publicId.split('/').pop().split('.')[0];
-        attachmentName = sanitizeFilename(`${base}.${file.format}`);
-    } else {
-        attachmentName = sanitizeFilename(file.publicId.split('/').pop());
-    }
+    const attachmentName = buildAttachmentFilename(file);
 
     const options = {
         resource_type: file.resourceType,
         secure: true,
-        // fl_attachment:<name> tells Cloudinary to send a Content-Disposition: attachment
-        // header with the given filename, so the browser saves it with the right name & extension.
+        // fl_attachment:<safe_name> → Content-Disposition: attachment; filename="safe_name"
         flags: `attachment:${attachmentName}`,
     };
 
-    // For non-raw resources (images, video) also pin the format so Cloudinary
-    // serves the correct file format and doesn't transcode.
+    // For image/video resources pin the format so Cloudinary doesn't transcode.
     if (file.resourceType !== 'raw' && file.format) {
         options.format = file.format;
     }
@@ -55,6 +73,4 @@ const generateDownloadUrl = (file) => {
     return cloudinary.url(file.publicId, options);
 };
 
-module.exports = {
-    generateDownloadUrl,
-};
+module.exports = { generateDownloadUrl };

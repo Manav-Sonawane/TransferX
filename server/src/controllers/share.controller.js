@@ -57,9 +57,6 @@ const getShare = async (req, res, next) => {
     }
 };
 
-const http = require('http');
-const https = require('https');
-
 /**
  * GET /api/shares/:code/download
  * Validates the share and proxies the Cloudinary download stream to the client.
@@ -72,6 +69,7 @@ const downloadShare = async (req, res, next) => {
         const ip = req.ip || req.headers['x-forwarded-for'];
         const userAgent = req.headers['user-agent'];
 
+        // All security checks (expiry, password, download limit) happen inside downloadShare
         const file = await shareService.downloadShare(
             req.params.code,
             password,
@@ -79,79 +77,20 @@ const downloadShare = async (req, res, next) => {
             userAgent
         );
 
-        const initialUrl = storageService.generateDownloadUrl(file);
+        // Generate the Cloudinary URL for direct browser access
+        const downloadUrl = storageService.generateDownloadUrl(file);
 
-        console.log(`[DEBUG] Proxying download for ${file.originalName} → ${initialUrl}`);
+        console.log(`[DEBUG] Generated download URL for ${file.originalName}: ${downloadUrl}`);
 
-        // Sanitize filename to prevent header injection errors
-        const safeName = file.originalName.replace(/[^\w\d_.-]/g, '_');
+        // Return URL as JSON — the browser will fetch directly from Cloudinary
+        // This avoids server-side streaming which has issues on platforms like Render
+        return sendSuccess(res, 200, 'Download URL generated', {
+            downloadUrl,
+            filename: file.originalName,
+        });
 
-        // Set exact content-disposition so the browser saves it with the correct name/extension
-        res.setHeader('Content-Disposition', `attachment; filename="${safeName}"`);
-
-        // Recursive function to fetch and follow redirects
-        const fetchFile = (downloadUrl, redirectCount = 0) => {
-            if (redirectCount > 5) {
-                if (!res.headersSent) res.status(500).json({ success: false, message: 'Too many redirects from storage provider' });
-                return;
-            }
-
-            try {
-                const client = downloadUrl.startsWith('https') ? https : http;
-
-                client.get(downloadUrl, (cloudinaryRes) => {
-                    // Follow redirects (301, 302, 303, 307, 308)
-                    if (cloudinaryRes.statusCode >= 300 && cloudinaryRes.statusCode < 400 && cloudinaryRes.headers.location) {
-                        cloudinaryRes.resume(); // Drain the stream to free up memory
-                        // Resolve relative URLs
-                        const nextUrl = new URL(cloudinaryRes.headers.location, downloadUrl).href;
-                        return fetchFile(nextUrl, redirectCount + 1);
-                    }
-
-                    if (cloudinaryRes.statusCode !== 200) {
-                        console.error(`[DEBUG] Storage provider returned status: ${cloudinaryRes.statusCode} for URL: ${downloadUrl}`);
-                        
-                        // Consume and log the error body to understand why Cloudinary rejected it
-                        let errorBody = '';
-                        cloudinaryRes.on('data', chunk => errorBody += chunk);
-                        cloudinaryRes.on('end', () => {
-                            console.error(`[DEBUG] Cloudinary Error Body:`, errorBody);
-                            if (!res.headersSent) res.status(502).json({ success: false, message: 'Storage provider error' });
-                        });
-                        return;
-                    }
-
-                    // Forward the content type and length
-                    if (cloudinaryRes.headers['content-type']) {
-                        res.setHeader('Content-Type', cloudinaryRes.headers['content-type']);
-                    } else {
-                        res.setHeader('Content-Type', 'application/octet-stream');
-                    }
-                    if (cloudinaryRes.headers['content-length']) {
-                        res.setHeader('Content-Length', cloudinaryRes.headers['content-length']);
-                    }
-                    
-                    cloudinaryRes.pipe(res);
-                }).on('error', (err) => {
-                    console.error('Download stream error:', err);
-                    if (!res.headersSent) {
-                        res.status(500).json({ success: false, message: 'Failed to stream file from storage' });
-                    }
-                });
-            } catch (syncError) {
-                console.error('Synchronous error during fetchFile:', syncError);
-                if (!res.headersSent) {
-                    res.status(500).json({ success: false, message: 'Failed to initialize download stream' });
-                }
-            }
-        };
-
-        fetchFile(initialUrl);
-        
     } catch (error) {
-        if (!res.headersSent) {
-            next(error);
-        }
+        next(error);
     }
 };
 

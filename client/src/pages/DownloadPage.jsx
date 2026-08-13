@@ -44,42 +44,41 @@ const DownloadPage = () => {
     setDownloading(true);
     try {
       const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-      const downloadUrl = `${apiBase}/shares/${code}/download${password ? `?password=${encodeURIComponent(password)}` : ''}`;
+      const endpoint = `${apiBase}/shares/${code}/download${password ? `?password=${encodeURIComponent(password)}` : ''}`;
 
-      // Fetch the file as a binary blob — this avoids browser navigation
-      // which causes ERR_INVALID_RESPONSE when streaming from the backend
-      const response = await fetch(downloadUrl, {
+      // Step 1: Validate password & get the Cloudinary download URL from our backend
+      const metaResponse = await fetch(endpoint, {
         method: 'GET',
         credentials: 'include',
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.message || `Download failed with status ${response.status}`);
+      if (!metaResponse.ok) {
+        const errorData = await metaResponse.json().catch(() => ({}));
+        throw new Error(errorData.message || `Error ${metaResponse.status}`);
       }
 
-      // Get the filename from Content-Disposition header if available
-      const disposition = response.headers.get('Content-Disposition');
-      let filename = shareData.file?.originalName || 'download';
-      if (disposition) {
-        const match = disposition.match(/filename="?([^";\n]+)"?/);
-        if (match) filename = match[1];
+      const metaJson = await metaResponse.json();
+      const { downloadUrl, filename } = metaJson.data;
+
+      // Step 2: Fetch the actual file bytes directly from Cloudinary
+      const fileResponse = await fetch(downloadUrl);
+
+      if (!fileResponse.ok) {
+        throw new Error(`Failed to fetch file from storage (${fileResponse.status})`);
       }
 
-      // Turn the response into a Blob and create a local object URL
-      const blob = await response.blob();
+      // Step 3: Turn response into a Blob and trigger browser save dialog
+      const blob = await fileResponse.blob();
       const blobUrl = URL.createObjectURL(blob);
 
-      // Trigger the browser's save dialog using the blob URL
       const a = document.createElement('a');
       a.href = blobUrl;
-      a.download = filename;
+      a.download = filename || 'download';
       a.style.display = 'none';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
 
-      // Clean up the object URL after a short delay
       setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
 
       toast.success('Download complete!');

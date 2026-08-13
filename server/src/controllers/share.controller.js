@@ -96,40 +96,54 @@ const downloadShare = async (req, res, next) => {
                 return;
             }
 
-            const client = downloadUrl.startsWith('https') ? https : http;
+            try {
+                const client = downloadUrl.startsWith('https') ? https : http;
 
-            client.get(downloadUrl, (cloudinaryRes) => {
-                // Follow redirects (301, 302, 303, 307, 308)
-                if (cloudinaryRes.statusCode >= 300 && cloudinaryRes.statusCode < 400 && cloudinaryRes.headers.location) {
-                    // Drain the stream to free up memory before redirecting
-                    cloudinaryRes.resume(); 
-                    return fetchFile(cloudinaryRes.headers.location, redirectCount + 1);
-                }
+                client.get(downloadUrl, (cloudinaryRes) => {
+                    // Follow redirects (301, 302, 303, 307, 308)
+                    if (cloudinaryRes.statusCode >= 300 && cloudinaryRes.statusCode < 400 && cloudinaryRes.headers.location) {
+                        cloudinaryRes.resume(); // Drain the stream to free up memory
+                        // Resolve relative URLs
+                        const nextUrl = new URL(cloudinaryRes.headers.location, downloadUrl).href;
+                        return fetchFile(nextUrl, redirectCount + 1);
+                    }
 
-                if (cloudinaryRes.statusCode !== 200) {
-                    console.error('Storage provider returned status:', cloudinaryRes.statusCode);
-                    cloudinaryRes.resume();
-                    if (!res.headersSent) res.status(502).json({ success: false, message: 'Storage provider error' });
-                    return;
-                }
+                    if (cloudinaryRes.statusCode !== 200) {
+                        console.error(`[DEBUG] Storage provider returned status: ${cloudinaryRes.statusCode} for URL: ${downloadUrl}`);
+                        
+                        // Consume and log the error body to understand why Cloudinary rejected it
+                        let errorBody = '';
+                        cloudinaryRes.on('data', chunk => errorBody += chunk);
+                        cloudinaryRes.on('end', () => {
+                            console.error(`[DEBUG] Cloudinary Error Body:`, errorBody);
+                            if (!res.headersSent) res.status(502).json({ success: false, message: 'Storage provider error' });
+                        });
+                        return;
+                    }
 
-                // Forward the content type and length
-                if (cloudinaryRes.headers['content-type']) {
-                    res.setHeader('Content-Type', cloudinaryRes.headers['content-type']);
-                } else {
-                    res.setHeader('Content-Type', 'application/octet-stream');
-                }
-                if (cloudinaryRes.headers['content-length']) {
-                    res.setHeader('Content-Length', cloudinaryRes.headers['content-length']);
-                }
-                
-                cloudinaryRes.pipe(res);
-            }).on('error', (err) => {
-                console.error('Download stream error:', err);
+                    // Forward the content type and length
+                    if (cloudinaryRes.headers['content-type']) {
+                        res.setHeader('Content-Type', cloudinaryRes.headers['content-type']);
+                    } else {
+                        res.setHeader('Content-Type', 'application/octet-stream');
+                    }
+                    if (cloudinaryRes.headers['content-length']) {
+                        res.setHeader('Content-Length', cloudinaryRes.headers['content-length']);
+                    }
+                    
+                    cloudinaryRes.pipe(res);
+                }).on('error', (err) => {
+                    console.error('Download stream error:', err);
+                    if (!res.headersSent) {
+                        res.status(500).json({ success: false, message: 'Failed to stream file from storage' });
+                    }
+                });
+            } catch (syncError) {
+                console.error('Synchronous error during fetchFile:', syncError);
                 if (!res.headersSent) {
-                    res.status(500).json({ success: false, message: 'Failed to stream file from storage' });
+                    res.status(500).json({ success: false, message: 'Failed to initialize download stream' });
                 }
-            });
+            }
         };
 
         fetchFile(initialUrl);

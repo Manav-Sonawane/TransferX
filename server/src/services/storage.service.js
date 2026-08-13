@@ -59,6 +59,10 @@ const generateDownloadUrl = (file) => {
     const options = {
         resource_type: file.resourceType,
         secure: true,
+        // Sign the URL so Cloudinary serves it regardless of account delivery restrictions.
+        // The signature is computed using the API secret and expires after 10 minutes.
+        sign_url: true,
+        expires_at: Math.floor(Date.now() / 1000) + 600, // 10 minutes
     };
 
     // Pin the format so Cloudinary doesn't transcode images/videos on download.
@@ -66,11 +70,6 @@ const generateDownloadUrl = (file) => {
     if (file.resourceType !== 'raw' && file.format) {
         options.format = file.format;
     }
-
-    // Note: We deliberately do NOT use `flags: 'attachment'` anymore. 
-    // Our Node backend proxies the stream and forcibly sets the Content-Disposition header 
-    // with the exact original filename. Passing `fl_attachment` to Cloudinary for raw 
-    // files causes HTTP 400 errors, so we just request the raw resource stream directly.
 
     return cloudinary.url(file.publicId, options);
 };

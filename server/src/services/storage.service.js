@@ -61,21 +61,16 @@ const generateDownloadUrl = (file) => {
         secure: true,
     };
 
-    if (file.resourceType === 'raw') {
-        // Cloudinary DOES NOT support custom attachment names for raw files.
-        // Doing `fl_attachment:name` for a raw file throws a 400 Bad Request.
-        // For raw files, the extension is already preserved in the public_id during upload.
-        options.flags = 'attachment';
-    } else {
-        // For images and videos, we CAN specify a custom attachment name.
-        const attachmentName = buildAttachmentFilename(file);
-        options.flags = `attachment:${attachmentName}`;
-
-        // Pin the format so Cloudinary doesn't transcode it on download
-        if (file.format) {
-            options.format = file.format;
-        }
+    // Pin the format so Cloudinary doesn't transcode images/videos on download.
+    // Raw files shouldn't have a format in the URL builder because it's baked into their publicId.
+    if (file.resourceType !== 'raw' && file.format) {
+        options.format = file.format;
     }
+
+    // Note: We deliberately do NOT use `flags: 'attachment'` anymore. 
+    // Our Node backend proxies the stream and forcibly sets the Content-Disposition header 
+    // with the exact original filename. Passing `fl_attachment` to Cloudinary for raw 
+    // files causes HTTP 400 errors, so we just request the raw resource stream directly.
 
     return cloudinary.url(file.publicId, options);
 };

@@ -32,22 +32,63 @@ const DownloadPage = () => {
     if (code) fetchShareDetails();
   }, [code]);
 
-  const handleDownload = () => {
+  const [downloading, setDownloading] = useState(false);
+
+  const handleDownload = async () => {
     if (!shareData) return;
     if (shareData.hasPassword && !password) {
       toast.error('Enter the password to download.');
       return;
     }
-    const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-    const downloadUrl = `${apiBase}/shares/${code}/download${password ? `?password=${encodeURIComponent(password)}` : ''}`;
-    const a = document.createElement('a');
-    a.href = downloadUrl;
-    a.style.display = 'none';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    toast.success('Download starting...');
-    setDownloaded(true);
+
+    setDownloading(true);
+    try {
+      const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const downloadUrl = `${apiBase}/shares/${code}/download${password ? `?password=${encodeURIComponent(password)}` : ''}`;
+
+      // Fetch the file as a binary blob — this avoids browser navigation
+      // which causes ERR_INVALID_RESPONSE when streaming from the backend
+      const response = await fetch(downloadUrl, {
+        method: 'GET',
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `Download failed with status ${response.status}`);
+      }
+
+      // Get the filename from Content-Disposition header if available
+      const disposition = response.headers.get('Content-Disposition');
+      let filename = shareData.file?.originalName || 'download';
+      if (disposition) {
+        const match = disposition.match(/filename="?([^";\n]+)"?/);
+        if (match) filename = match[1];
+      }
+
+      // Turn the response into a Blob and create a local object URL
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+
+      // Trigger the browser's save dialog using the blob URL
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = filename;
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+
+      // Clean up the object URL after a short delay
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
+
+      toast.success('Download complete!');
+      setDownloaded(true);
+    } catch (err) {
+      toast.error(err.message || 'Download failed. Please try again.');
+    } finally {
+      setDownloading(false);
+    }
   };
 
   const formatBytes = (bytes, d = 2) => {
@@ -202,8 +243,8 @@ const DownloadPage = () => {
               </div>
             </div>
           ) : (
-            <NBButton variant="primary" className="w-full" onClick={handleDownload}>
-              <Download size={18} /> Download File
+            <NBButton variant="primary" className="w-full" onClick={handleDownload} loading={downloading}>
+              <Download size={18} /> {downloading ? 'Downloading...' : 'Download File'}
             </NBButton>
           )}
 

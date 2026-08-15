@@ -48,22 +48,42 @@ const AccessCard = () => {
     }
   };
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (!shareData) return;
     if (shareData.hasPassword && !password) {
       toast.error('Enter the password to download.');
       return;
     }
+
     const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-    const url = `${apiBase}/shares/${code}/download${password ? `?password=${encodeURIComponent(password)}` : ''}`;
-    const a = document.createElement('a');
-    a.href = url;
-    a.style.display = 'none';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    toast.success('Download starting...');
-    setDownloaded(true);
+
+    try {
+      if (shareData.hasPassword) {
+        // Validate password first to show any errors
+        const validationEndpoint = `${apiBase}/shares/${code}/download?password=${encodeURIComponent(password)}`;
+        const validationResponse = await fetch(validationEndpoint, {
+          method: 'GET',
+          credentials: 'include',
+        });
+
+        if (!validationResponse.ok) {
+          const errorData = await validationResponse.json().catch(() => ({}));
+          const remaining = errorData.attemptsRemaining;
+          const msg = errorData.message || `Error ${validationResponse.status}`;
+          throw new Error(remaining != null ? `${msg} (${remaining} attempt${remaining === 1 ? '' : 's'} remaining)` : msg);
+        }
+
+        toast.success('Password accepted! Starting download...');
+        setDownloaded(true);
+        window.location.href = `${apiBase}/shares/${code}/redirect?password=${encodeURIComponent(password)}`;
+      } else {
+        toast.success('Download starting...');
+        setDownloaded(true);
+        window.location.href = `${apiBase}/shares/${code}/redirect`;
+      }
+    } catch (err) {
+      toast.error(err.message || 'Download failed. Please try again.');
+    }
   };
 
   const reset = () => {

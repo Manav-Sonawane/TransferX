@@ -10,6 +10,7 @@ const authRoutes = require('./routes/auth.routes');
 const fileRoutes = require('./routes/file.routes');
 const shareRoutes = require('./routes/share.routes');
 const dashboardRoutes = require('./routes/dashboard.routes');
+const downloadRoutes = require('./routes/download.routes');
 
 
 const app = express();
@@ -23,7 +24,7 @@ app.use(
         origin: process.env.CLIENT_URL || 'http://localhost:5173',
         credentials: true,
         methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-        allowedHeaders: ['Content-Type', 'Authorization'],
+        allowedHeaders: ['Content-Type', 'Authorization', 'X-Access-Token'],
         exposedHeaders: ['Content-Disposition', 'Content-Length', 'Content-Type'],
     })
 );
@@ -59,6 +60,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/files', fileRoutes);
 app.use('/api/shares', shareRoutes);
 app.use('/api/dashboard', dashboardRoutes);
+app.use('/api/download', downloadRoutes);
 
 
 // ─── 404 Handler ─────────────────────────────

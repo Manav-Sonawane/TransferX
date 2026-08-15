@@ -1,5 +1,6 @@
 const shareService = require('../services/share.service');
 const storageService = require('../services/storage.service');
+const passwordService = require('../services/password.service');
 const { sendSuccess } = require('../utils/response');
 
 /**
@@ -49,8 +50,6 @@ const getShare = async (req, res, next) => {
             downloadLimit: share.downloadLimit,
         };
 
-        console.log(`[DEBUG] Returned Response (GetShare):`, JSON.stringify(responsePayload, null, 2));
-
         return sendSuccess(res, 200, 'Share metadata fetched successfully', responsePayload);
     } catch (error) {
         next(error);
@@ -59,31 +58,52 @@ const getShare = async (req, res, next) => {
 
 /**
  * GET /api/shares/:code/download
- * Validates the share and proxies the Cloudinary download stream to the client.
- * This ensures we can forcibly set the exact original filename and extension,
- * bypassing Cloudinary's naming limitations for raw files.
+ * Validates the share (password, expiry, limits) and returns the
+ * direct Cloudinary download URL as JSON for the frontend to use.
  */
 const downloadShare = async (req, res, next) => {
     try {
         const { password } = req.query;
-        const ip = req.ip || req.headers['x-forwarded-for'];
+        const ip = req.ip || req.headers['x-forwarded-for'] || 'unknown';
         const userAgent = req.headers['user-agent'];
+        const shareCode = req.params.code;
+
+        // Rate limiting check for password-protected shares
+        const rateLimit = await passwordService.checkRateLimit(shareCode, ip);
+        if (rateLimit.blocked) {
+            return res.status(429).json({
+                success: false,
+                message: 'Too many failed attempts. Please try again later.',
+                attemptsRemaining: 0,
+            });
+        }
 
         // All security checks (expiry, password, download limit) happen inside downloadShare
-        const file = await shareService.downloadShare(
-            req.params.code,
-            password,
-            ip,
-            userAgent
-        );
+        let file;
+        try {
+            file = await shareService.downloadShare(shareCode, password, ip, userAgent, true);
+        } catch (err) {
+            // If password was wrong, record the failed attempt
+            if (err.statusCode === 403 && password) {
+                const attempts = await passwordService.recordFailedAttempt(shareCode, ip);
+                const remaining = Math.max(0, passwordService.MAX_FAILED_ATTEMPTS - attempts);
+                return res.status(403).json({
+                    success: false,
+                    message: err.message,
+                    attemptsRemaining: remaining,
+                });
+            }
+            throw err;
+        }
+
+        // Clear failed attempts on successful password entry
+        if (password) {
+            await passwordService.clearFailedAttempts(shareCode, ip);
+        }
 
         // Generate the Cloudinary URL for direct browser access
         const downloadUrl = storageService.generateDownloadUrl(file);
 
-        console.log(`[DEBUG] Generated download URL for ${file.originalName}: ${downloadUrl}`);
-
-        // Return URL as JSON — the browser will fetch directly from Cloudinary
-        // This avoids server-side streaming which has issues on platforms like Render
         return sendSuccess(res, 200, 'Download URL generated', {
             downloadUrl,
             filename: file.originalName,
@@ -94,8 +114,56 @@ const downloadShare = async (req, res, next) => {
     }
 };
 
+/**
+ * GET /api/shares/:code/redirect
+ * Same validation as downloadShare, but returns an HTTP 302 redirect
+ * directly to the Cloudinary URL instead of JSON.
+ *
+ * This is the preferred method for browsers — Cloudinary sends the correct
+ * Content-Type headers so PDFs, ZIPs, etc. download with proper MIME types.
+ */
+const redirectDownload = async (req, res, next) => {
+    try {
+        const { password } = req.query;
+        const ip = req.ip || req.headers['x-forwarded-for'] || 'unknown';
+        const userAgent = req.headers['user-agent'];
+        const shareCode = req.params.code;
+
+        // Rate limiting check
+        const rateLimit = await passwordService.checkRateLimit(shareCode, ip);
+        if (rateLimit.blocked) {
+            return res.status(429).json({
+                success: false,
+                message: 'Too many failed attempts. Please try again later.',
+            });
+        }
+
+        let file;
+        try {
+            file = await shareService.downloadShare(shareCode, password, ip, userAgent, false);
+        } catch (err) {
+            if (err.statusCode === 403 && password) {
+                await passwordService.recordFailedAttempt(shareCode, ip);
+            }
+            throw err;
+        }
+
+        if (password) {
+            await passwordService.clearFailedAttempts(shareCode, ip);
+        }
+
+        const downloadUrl = storageService.generateDownloadUrl(file);
+
+        // HTTP 302 Redirect — browser follows this to Cloudinary
+        return res.redirect(302, downloadUrl);
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     createShare,
     getShare,
     downloadShare,
+    redirectDownload,
 };

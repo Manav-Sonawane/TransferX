@@ -68,21 +68,11 @@ const createShare = async ({ userId, fileId, password, downloadLimit, expiryDays
  * Retrieve share record by its code (excluding password)
  */
 const getShareByCode = async (shareCode) => {
-    console.log(`[DEBUG] Share Lookup - Code: ${shareCode}`);
-
     const share = await Share.findOne({ shareCode, isActive: true })
         .populate({
             path: 'fileId',
             select: 'originalName fileName size extension mimeType owner visibility publicId resourceType format',
         });
-
-    console.log(`[DEBUG] Share Found: ${!!share}`);
-    if (share) {
-        console.log(`[DEBUG] File Found (Populate Result): ${!!share.fileId}`);
-        if (share.fileId) {
-            console.log(`[DEBUG] Generated Download URL: ${storageService.generateDownloadUrl(share.fileId)}`);
-        }
-    }
 
     if (!share) {
         throw new NotFoundError('Share link not found or has been deactivated');
@@ -110,7 +100,7 @@ const DownloadLog = require('../models/DownloadLog');
 /**
  * Validate password and execute download tracking (increment download counts, log analytics)
  */
-const downloadShare = async (shareCode, password, ip, userAgent) => {
+const downloadShare = async (shareCode, password, ip, userAgent, validateOnly = false) => {
     // 1. Fetch share with populated file and include password in query for validation
     const share = await Share.findOne({ shareCode, isActive: true })
         .populate('fileId');
@@ -144,20 +134,22 @@ const downloadShare = async (shareCode, password, ip, userAgent) => {
         }
     }
 
-    // 5. Track Download: Increment count & check limit closure
-    share.downloadCount += 1;
-    if (share.downloadLimit > 0 && share.downloadCount >= share.downloadLimit) {
-        share.isActive = false;
-    }
-    await share.save();
+    if (!validateOnly) {
+        // 5. Track Download: Increment count & check limit closure
+        share.downloadCount += 1;
+        if (share.downloadLimit > 0 && share.downloadCount >= share.downloadLimit) {
+            share.isActive = false;
+        }
+        await share.save();
 
-    // 6. Log Download Analytics
-    await DownloadLog.create({
-        fileId: share.fileId._id,
-        shareId: share._id,
-        ip: ip || 'unknown',
-        userAgent: userAgent || 'unknown',
-    });
+        // 6. Log Download Analytics
+        await DownloadLog.create({
+            fileId: share.fileId._id,
+            shareId: share._id,
+            ip: ip || 'unknown',
+            userAgent: userAgent || 'unknown',
+        });
+    }
 
     return share.fileId; // Returns the file document containing storageUrl virtual
 };

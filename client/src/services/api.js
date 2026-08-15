@@ -41,6 +41,17 @@ api.interceptors.response.use(
         localStorage.setItem('accessToken', newToken);
         originalRequest.headers.Authorization = `Bearer ${newToken}`;
 
+        // Fetch current user to update AuthContext state
+        try {
+          const { data: userData } = await axios.get(
+            `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/auth/me`,
+            { withCredentials: true }
+          );
+          localStorage.setItem('user', JSON.stringify(userData.data.user));
+        } catch {
+          // ignore user fetch errors during token refresh
+        }
+
         return api(originalRequest);
       } catch (_err) {
         localStorage.removeItem('accessToken');

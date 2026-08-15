@@ -13,6 +13,8 @@ export const AuthProvider = ({ children }) => {
     const token = localStorage.getItem('accessToken');
     if (!token) {
       setLoading(false);
+      setUser(null);
+      setIsAuthenticated(false);
       return;
     }
 
@@ -31,7 +33,15 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     fetchMe();
-  }, [fetchMe]);
+  }, []);
+
+  // Re-fetch user when access token changes
+  useEffect(() => {
+    const token = localStorage.getItem('accessToken');
+    if (token) {
+      fetchMe();
+    }
+  }, []);
 
   // ─── Login ────────────────────────────────────
   const login = async (credentials) => {

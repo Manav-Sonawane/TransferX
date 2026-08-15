@@ -44,45 +44,33 @@ const DownloadPage = () => {
     setDownloading(true);
     try {
       const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-      const endpoint = `${apiBase}/shares/${code}/download${password ? `?password=${encodeURIComponent(password)}` : ''}`;
 
-      // Step 1: Validate password & get the Cloudinary download URL from our backend
-      const metaResponse = await fetch(endpoint, {
-        method: 'GET',
-        credentials: 'include',
-      });
+      if (shareData.hasPassword) {
+        // Step 1: Validate password first to get proper error messages & rate limiting
+        const validationEndpoint = `${apiBase}/shares/${code}/download?password=${encodeURIComponent(password)}`;
+        const validationResponse = await fetch(validationEndpoint, {
+          method: 'GET',
+          credentials: 'include',
+        });
 
-      if (!metaResponse.ok) {
-        const errorData = await metaResponse.json().catch(() => ({}));
-        throw new Error(errorData.message || `Error ${metaResponse.status}`);
+        if (!validationResponse.ok) {
+          const errorData = await validationResponse.json().catch(() => ({}));
+          const remaining = errorData.attemptsRemaining;
+          const msg = errorData.message || `Error ${validationResponse.status}`;
+          throw new Error(remaining != null ? `${msg} (${remaining} attempt${remaining === 1 ? '' : 's'} remaining)` : msg);
+        }
+
+        // Step 2: Password valid — navigate to redirect endpoint (browser follows 302 to Cloudinary)
+        toast.success('Password accepted! Starting download...');
+        setDownloaded(true);
+        window.location.href = `${apiBase}/shares/${code}/redirect?password=${encodeURIComponent(password)}`;
+      } else {
+        // No password — navigate directly to the redirect endpoint
+        // Browser follows the 302 redirect straight to Cloudinary CDN
+        toast.success('Starting download...');
+        setDownloaded(true);
+        window.location.href = `${apiBase}/shares/${code}/redirect`;
       }
-
-      const metaJson = await metaResponse.json();
-      const { downloadUrl, filename } = metaJson.data;
-
-      // Step 2: Fetch the actual file bytes directly from Cloudinary
-      const fileResponse = await fetch(downloadUrl);
-
-      if (!fileResponse.ok) {
-        throw new Error(`Failed to fetch file from storage (${fileResponse.status})`);
-      }
-
-      // Step 3: Turn response into a Blob and trigger browser save dialog
-      const blob = await fileResponse.blob();
-      const blobUrl = URL.createObjectURL(blob);
-
-      const a = document.createElement('a');
-      a.href = blobUrl;
-      a.download = filename || 'download';
-      a.style.display = 'none';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-
-      setTimeout(() => URL.revokeObjectURL(blobUrl), 10000);
-
-      toast.success('Download complete!');
-      setDownloaded(true);
     } catch (err) {
       toast.error(err.message || 'Download failed. Please try again.');
     } finally {

@@ -57,6 +57,14 @@ shareSchema.methods.comparePassword = async function (candidatePassword) {
     return bcrypt.compare(candidatePassword, this.password);
 };
 
+shareSchema.methods.isExpired = function () {
+    return new Date() > this.expiry;
+};
+
+shareSchema.methods.isDownloadLimitReached = function () {
+    return this.downloadLimit > 0 && this.downloadCount >= this.downloadLimit;
+};
+
 const Share = mongoose.model('Share', shareSchema);
 
 module.exports = Share;

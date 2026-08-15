@@ -43,7 +43,7 @@ const uploadToCloudinary = (fileBuffer, originalName, mimeType, folder = 'transf
                 resource_type: resourceType,
                 public_id: publicId,
                 overwrite: false,
-                filename_override: parsed.name,
+                filename_override: originalName,
                 use_filename: true,
             },
             (error, result) => {

@@ -68,21 +68,11 @@ const createShare = async ({ userId, fileId, password, downloadLimit, expiryDays
  * Retrieve share record by its code (excluding password)
  */
 const getShareByCode = async (shareCode) => {
-    console.log(`[DEBUG] Share Lookup - Code: ${shareCode}`);
-
     const share = await Share.findOne({ shareCode, isActive: true })
         .populate({
             path: 'fileId',
             select: 'originalName fileName size extension mimeType owner visibility publicId resourceType format',
         });
-
-    console.log(`[DEBUG] Share Found: ${!!share}`);
-    if (share) {
-        console.log(`[DEBUG] File Found (Populate Result): ${!!share.fileId}`);
-        if (share.fileId) {
-            console.log(`[DEBUG] Generated Download URL: ${storageService.generateDownloadUrl(share.fileId)}`);
-        }
-    }
 
     if (!share) {
         throw new NotFoundError('Share link not found or has been deactivated');

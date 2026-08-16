@@ -81,7 +81,11 @@ const downloadShare = async (req, res, next) => {
         // All security checks (expiry, password, download limit) happen inside downloadShare
         let file;
         try {
+<<<<<<< HEAD
             file = await shareService.downloadShare(shareCode, password, ip, userAgent, true);
+=======
+            file = await shareService.downloadShare(shareCode, password, ip, userAgent);
+>>>>>>> fd396c7ef69fcb391373f3ea57ab89e98e903eb9
         } catch (err) {
             // If password was wrong, record the failed attempt
             if (err.statusCode === 403 && password) {
@@ -140,7 +144,11 @@ const redirectDownload = async (req, res, next) => {
 
         let file;
         try {
+<<<<<<< HEAD
             file = await shareService.downloadShare(shareCode, password, ip, userAgent, false);
+=======
+            file = await shareService.downloadShare(shareCode, password, ip, userAgent);
+>>>>>>> fd396c7ef69fcb391373f3ea57ab89e98e903eb9
         } catch (err) {
             if (err.statusCode === 403 && password) {
                 await passwordService.recordFailedAttempt(shareCode, ip);

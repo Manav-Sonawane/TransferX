@@ -3,6 +3,28 @@ import { socketService } from '../services/socket.service';
 
 const CHUNK_SIZE = 16384; // 16KB per chunk
 
+const ICE_SERVERS = [
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: 'stun:stun1.l.google.com:19302' },
+  { urls: 'stun:stun2.l.google.com:19302' },
+  { urls: 'stun:stun3.l.google.com:19302' },
+  {
+    urls: 'turn:openrelay.metered.ca:80',
+    username: 'openrelayproject',
+    credential: 'openrelayproject',
+  },
+  {
+    urls: 'turn:openrelay.metered.ca:443',
+    username: 'openrelayproject',
+    credential: 'openrelayproject',
+  },
+  {
+    urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+    username: 'openrelayproject',
+    credential: 'openrelayproject',
+  },
+];
+
 export const useWebRTC = (sessionCode, myName) => {
   const [peerName, setPeerName] = useState(null);
   const [connectionStatus, setConnectionStatus] = useState('waiting'); // waiting, connecting, connected, disconnected
@@ -65,9 +87,10 @@ export const useWebRTC = (sessionCode, myName) => {
     }
 
     const onPeerJoined = (participant) => {
-      console.log(`[WebRTC] Peer joined: ${participant.name}`);
+      console.log(`[WebRTC] Peer joined: ${participant.name} (${participant.socketId})`);
       targetSocketId.current = participant.socketId;
       setPeerName(participant.name);
+      setConnectionStatus('connecting');
     };
 
     const onPeerLeft = () => {
@@ -125,13 +148,12 @@ export const useWebRTC = (sessionCode, myName) => {
     };
   }, [sessionCode, myName]);
 
+
   const createPeerConnection = () => {
     if (peerConnection.current) return;
 
     console.log(`[WebRTC] Creating new RTCPeerConnection`);
-    peerConnection.current = new RTCPeerConnection({
-      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
-    });
+    peerConnection.current = new RTCPeerConnection({ iceServers: ICE_SERVERS });
 
     peerConnection.current.onicecandidate = (event) => {
       if (event.candidate && targetSocketId.current) {
@@ -148,16 +170,32 @@ export const useWebRTC = (sessionCode, myName) => {
       console.log(`[WebRTC] Connection state changed to: ${state}`);
       if (state === 'connected') {
         setConnectionStatus('connected');
-      } else if (state === 'disconnected' || state === 'failed' || state === 'closed') {
+      } else if (state === 'failed' || state === 'closed') {
         setConnectionStatus('disconnected');
         if (peerConnection.current) {
           peerConnection.current.close();
           peerConnection.current = null;
         }
         dataChannel.current = null;
+      } else if (state === 'disconnected') {
+        // Don't close immediately on 'disconnected' — WebRTC may recover
+        setConnectionStatus('connecting');
       } else {
         setConnectionStatus('connecting');
       }
+    };
+
+    peerConnection.current.oniceconnectionstatechange = () => {
+      const iceState = peerConnection.current?.iceConnectionState;
+      console.log(`[WebRTC] ICE connection state: ${iceState}`);
+      if (iceState === 'failed') {
+        console.warn('[WebRTC] ICE failed — attempting restart');
+        peerConnection.current?.restartIce();
+      }
+    };
+
+    peerConnection.current.onicegatheringstatechange = () => {
+      console.log(`[WebRTC] ICE gathering state: ${peerConnection.current?.iceGatheringState}`);
     };
 
     peerConnection.current.onsignalingstatechange = () => {

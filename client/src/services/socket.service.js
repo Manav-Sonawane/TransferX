@@ -9,22 +9,30 @@ class SocketService {
 
   connect() {
     if (!this.socket) {
+      // Create the socket instance (autoConnect: true by default)
       this.socket = io(SOCKET_URL, {
         withCredentials: true,
-        transports: ['websocket', 'polling'], // Fallback to polling if necessary
+        transports: ['websocket', 'polling'],
+        reconnection: true,
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000,
       });
 
       this.socket.on('connect', () => {
         console.log('[Socket] Connected with ID:', this.socket.id);
       });
 
-      this.socket.on('disconnect', () => {
-        console.log('[Socket] Disconnected');
+      this.socket.on('disconnect', (reason) => {
+        console.log('[Socket] Disconnected, reason:', reason);
       });
-      
+
       this.socket.on('connect_error', (error) => {
-        console.error('[Socket] Connection Error:', error);
+        console.error('[Socket] Connection Error:', error.message);
       });
+    } else if (!this.socket.connected) {
+      // Socket exists but was disconnected — reconnect it without creating a new instance
+      console.log('[Socket] Reconnecting existing socket...');
+      this.socket.connect();
     }
     return this.socket;
   }
@@ -37,7 +45,7 @@ class SocketService {
   }
 
   getSocket() {
-    if (!this.socket) {
+    if (!this.socket || !this.socket.connected) {
       return this.connect();
     }
     return this.socket;

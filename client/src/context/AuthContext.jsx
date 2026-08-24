@@ -33,15 +33,7 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     fetchMe();
-  }, []);
-
-  // Re-fetch user when access token changes
-  useEffect(() => {
-    const token = localStorage.getItem('accessToken');
-    if (token) {
-      fetchMe();
-    }
-  }, []);
+  }, [fetchMe]);
 
   // ─── Login ────────────────────────────────────
   const login = async (credentials) => {

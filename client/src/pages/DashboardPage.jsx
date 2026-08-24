@@ -43,7 +43,7 @@ const FileRow = ({ file, onDelete }) => (
     <div className="flex items-center gap-3 min-w-0 flex-1">
       <FileText size={14} style={{ flexShrink: 0 }} />
       <div className="min-w-0">
-        <p className="text-sm font-bold truncate" style={{ fontFamily: 'var(--font-heading)' }}>{file.originalName}</p>
+        <p className="text-sm font-bold truncate" style={{ fontFamily: 'var(--font-heading)' }}>{file.name}</p>
         <p className="text-xs" style={{ fontFamily: 'var(--font-mono)', color: '#6b7280' }}>{formatBytes(file.size)}</p>
       </div>
     </div>
@@ -59,18 +59,18 @@ const ShareRow = ({ share }) => (
   <div className="flex items-center justify-between py-3" style={{ borderBottom: '2px solid var(--nb-gray)' }}>
     <div className="min-w-0 flex-1">
       <p className="text-sm font-bold truncate mb-1" style={{ fontFamily: 'var(--font-heading)' }}>
-        {share.fileId?.originalName || 'Unknown file'}
+        {share.fileName || 'Unknown file'}
       </p>
       <div className="flex items-center gap-2 flex-wrap">
-        <NBBadge color="black" className="text-xs">{share.shareCode}</NBBadge>
+        <NBBadge color="black" className="text-xs">{share.code}</NBBadge>
         <span className="text-xs" style={{ fontFamily: 'var(--font-mono)', color: '#6b7280' }}>
-          {share.downloadCount} downloads
-          {share.downloadLimit > 0 ? ` / ${share.downloadLimit}` : ''}
+          {share.downloads} downloads
+          {share.limit > 0 ? ` / ${share.limit}` : ''}
         </span>
       </div>
     </div>
-    <NBBadge color={share.isActive ? 'green' : 'pink'} className="ml-3 flex-shrink-0">
-      {share.isActive ? 'Active' : 'Expired'}
+    <NBBadge color={!share.isExpired ? 'green' : 'pink'} className="ml-3 flex-shrink-0">
+      {!share.isExpired ? 'Active' : 'Expired'}
     </NBBadge>
   </div>
 );

@@ -21,7 +21,19 @@ app.use(helmet());
 // ─── CORS ────────────────────────────────────
 app.use(
     cors({
-        origin: process.env.CLIENT_URL || 'http://localhost:5173',
+        origin: (origin, callback) => {
+            // In development, allow all origins for cross-device testing.
+            // In production, restrict to the configured CLIENT_URL.
+            if (process.env.NODE_ENV !== 'production') {
+                return callback(null, true);
+            }
+            const allowed = process.env.CLIENT_URL || 'http://localhost:5173';
+            if (!origin || origin === allowed) {
+                callback(null, true);
+            } else {
+                callback(new Error(`CORS: Origin ${origin} not allowed`));
+            }
+        },
         credentials: true,
         methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
         allowedHeaders: ['Content-Type', 'Authorization', 'X-Access-Token'],

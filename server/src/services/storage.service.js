@@ -21,9 +21,11 @@ const generateDownloadUrl = (file) => {
         flags: 'attachment',
     };
 
-    // Pin the format so Cloudinary doesn't transcode images/videos on download.
-    // Raw files shouldn't have a format in the URL builder because it's baked into their publicId.
-    if (file.resourceType !== 'raw' && file.format) {
+    // Pin the format whenever it's known, so Cloudinary doesn't transcode
+    // images/videos on download and raw files (PDF, ZIP, ...) get a reliable
+    // Content-Type instead of depending solely on the publicId's extension
+    // being correctly interpreted (see docs/UPDATE.md for the history here).
+    if (file.format) {
         options.format = file.format;
     }
 

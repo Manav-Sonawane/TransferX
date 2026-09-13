@@ -4,13 +4,14 @@ const router = express.Router();
 const authController = require('../controllers/auth.controller');
 const { authenticate } = require('../middlewares/auth.middleware');
 const { validate } = require('../middlewares/validate.middleware');
+const { authRateLimiter } = require('../middlewares/rateLimit.middleware');
 const { registerSchema, loginSchema } = require('../validators/auth.validator');
 
 // POST /api/auth/register
-router.post('/register', validate(registerSchema), authController.register);
+router.post('/register', authRateLimiter, validate(registerSchema), authController.register);
 
 // POST /api/auth/login
-router.post('/login', validate(loginSchema), authController.login);
+router.post('/login', authRateLimiter, validate(loginSchema), authController.login);
 
 // POST /api/auth/logout  (optional auth — works even if token is expired)
 router.post('/logout', authController.logout);

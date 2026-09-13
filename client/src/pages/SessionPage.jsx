@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useWebRTC } from '../hooks/useWebRTC';
 import { Users, UserPlus, FileUp, FileDown, ShieldCheck, Copy, Check, Smartphone, ArrowLeft } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { formatBytes } from '../utils/helpers';
 import NBCard from '../components/ui/NBCard';
 import NBButton from '../components/ui/NBButton';
 import NBBadge from '../components/ui/NBBadge';
@@ -35,13 +36,6 @@ const SessionPage = () => {
 
   const leaveSession = () => navigate('/');
 
-  const formatBytes = (bytes, d = 2) => {
-    if (bytes === 0) return '0 B';
-    const k = 1024, s = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(d))} ${s[i]}`;
-  };
-
   const isConnected = connectionStatus === 'connected';
 
   return (
@@ -60,7 +54,7 @@ const SessionPage = () => {
               <h1 className="font-bold uppercase tracking-wider text-sm" style={{ fontFamily: 'var(--font-heading)' }}>
                 P2P Session
               </h1>
-              <p className="text-xs" style={{ fontFamily: 'var(--font-mono)', color: '#6b7280' }}>
+              <p className="text-xs" style={{ fontFamily: 'var(--font-mono)', color: '#6b7280' }} aria-live="polite">
                 {isConnected ? 'WebRTC connected' : 'Waiting for peer...'}
               </p>
             </div>
@@ -193,9 +187,9 @@ const SessionPage = () => {
                     {transferProgress.progress}%
                   </span>
                 </div>
-                <div className="p-4">
+                <div className="p-4" aria-live="polite">
                   <p className="text-xs mb-3 truncate" style={{ fontFamily: 'var(--font-mono)', color: '#6b7280' }}>
-                    {transferProgress.fileName}
+                    {transferProgress.fileName} — {transferProgress.progress}%
                   </p>
                   <NBProgress
                     progress={transferProgress.progress}

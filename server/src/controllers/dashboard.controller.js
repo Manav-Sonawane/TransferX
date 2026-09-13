@@ -3,7 +3,7 @@ const Share = require('../models/Share');
 
 exports.getDashboardStats = async (req, res) => {
   try {
-    const userId = req.user._id;
+    const userId = req.user.id;
 
     // 1. Files Uploaded & Storage Used
     const files = await File.find({ owner: userId }).sort({ createdAt: -1 });
@@ -49,7 +49,7 @@ exports.getDashboardStats = async (req, res) => {
         fileName: s.fileId?.originalName,
         downloads: s.downloadCount,
         limit: s.downloadLimit,
-        expiresAt: s.expiresAt,
+        expiresAt: s.expiry,
         createdAt: s.createdAt,
         isExpired: s.isExpired()
       }))

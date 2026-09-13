@@ -1,7 +1,46 @@
 const shareService = require('../services/share.service');
 const storageService = require('../services/storage.service');
 const passwordService = require('../services/password.service');
+const accessTokenService = require('../services/accessToken.service');
 const { sendSuccess } = require('../utils/response');
+
+/**
+ * Shared rate-limit → validate → track sequence used by both downloadShare
+ * and redirectDownload. Centralized so a future fix (as nearly happened with
+ * the raw-file format bug) can't be applied to one copy and missed in the
+ * other. Returns a discriminated result rather than throwing for the
+ * rate-limited/wrong-password cases, since each caller renders those into a
+ * slightly different response shape.
+ */
+const resolveShareDownload = async ({ shareCode, ip, userAgent, password, token, validateOnly }) => {
+    let preValidated = false;
+    if (token) {
+        const verification = accessTokenService.verifyAccessToken(token, shareCode, 'guest');
+        preValidated = verification.valid;
+    }
+
+    if (!preValidated) {
+        const rateLimit = await passwordService.checkRateLimit(shareCode, ip);
+        if (rateLimit.blocked) {
+            return { blocked: true };
+        }
+    }
+
+    try {
+        const file = await shareService.downloadShare(shareCode, password, ip, userAgent, validateOnly, preValidated);
+        if (!preValidated && password) {
+            await passwordService.clearFailedAttempts(shareCode, ip);
+        }
+        return { file };
+    } catch (err) {
+        if (err.statusCode === 403 && !preValidated) {
+            const attempts = await passwordService.recordFailedAttempt(shareCode, ip);
+            const remaining = Math.max(0, passwordService.MAX_FAILED_ATTEMPTS - attempts);
+            return { wrongPassword: true, message: err.message, attemptsRemaining: remaining };
+        }
+        throw err;
+    }
+};
 
 /**
  * POST /api/shares
@@ -57,56 +96,54 @@ const getShare = async (req, res, next) => {
 };
 
 /**
- * GET /api/shares/:code/download
+ * POST /api/shares/:code/download
  * Validates the share (password, expiry, limits) and returns the
- * direct Cloudinary download URL as JSON for the frontend to use.
+ * direct Cloudinary download URL as JSON for the frontend to use,
+ * plus a short-lived access token the client can use to fetch
+ * /redirect without resending the plaintext password.
  */
 const downloadShare = async (req, res, next) => {
     try {
-        const { password } = req.query;
-        const ip = req.ip || req.headers['x-forwarded-for'] || 'unknown';
+        const { password } = req.body;
+        const ip = req.ip || 'unknown';
         const userAgent = req.headers['user-agent'];
         const shareCode = req.params.code;
 
-        // Rate limiting check for password-protected shares
-        const rateLimit = await passwordService.checkRateLimit(shareCode, ip);
-        if (rateLimit.blocked) {
+        const result = await resolveShareDownload({ shareCode, ip, userAgent, password, validateOnly: true });
+
+        if (result.blocked) {
             return res.status(429).json({
                 success: false,
                 message: 'Too many failed attempts. Please try again later.',
                 attemptsRemaining: 0,
             });
         }
-
-        // All security checks (expiry, password, download limit) happen inside downloadShare
-        let file;
-        try {
-            file = await shareService.downloadShare(shareCode, password, ip, userAgent, true);
-        } catch (err) {
-            // If password was wrong, record the failed attempt
-            if (err.statusCode === 403 && password) {
-                const attempts = await passwordService.recordFailedAttempt(shareCode, ip);
-                const remaining = Math.max(0, passwordService.MAX_FAILED_ATTEMPTS - attempts);
-                return res.status(403).json({
-                    success: false,
-                    message: err.message,
-                    attemptsRemaining: remaining,
-                });
-            }
-            throw err;
+        if (result.wrongPassword) {
+            return res.status(403).json({
+                success: false,
+                message: result.message,
+                attemptsRemaining: result.attemptsRemaining,
+            });
         }
 
-        // Clear failed attempts on successful password entry
-        if (password) {
-            await passwordService.clearFailedAttempts(shareCode, ip);
-        }
+        const { file } = result;
 
         // Generate the Cloudinary URL for direct browser access
         const downloadUrl = storageService.generateDownloadUrl(file);
 
+        // Issue a short-lived, single-purpose token bound to this share code so
+        // the follow-up /redirect navigation never needs the password again.
+        const { token: accessToken, expiresAt } = accessTokenService.generateAccessToken(
+            shareCode,
+            'guest',
+            300 // 5 minutes — just long enough to click "Download"
+        );
+
         return sendSuccess(res, 200, 'Download URL generated', {
             downloadUrl,
             filename: file.originalName,
+            accessToken,
+            accessTokenExpiresAt: expiresAt,
         });
 
     } catch (error) {
@@ -116,43 +153,39 @@ const downloadShare = async (req, res, next) => {
 
 /**
  * GET /api/shares/:code/redirect
- * Same validation as downloadShare, but returns an HTTP 302 redirect
- * directly to the Cloudinary URL instead of JSON.
+ * Returns an HTTP 302 redirect directly to the Cloudinary URL.
+ *
+ * For password-protected shares, requires the `token` query param obtained
+ * from POST /download — the plaintext password is never accepted here, since
+ * this is a browser navigation and its URL can land in logs/history.
+ * For shares with no password, no token is needed.
  *
  * This is the preferred method for browsers — Cloudinary sends the correct
  * Content-Type headers so PDFs, ZIPs, etc. download with proper MIME types.
  */
 const redirectDownload = async (req, res, next) => {
     try {
-        const { password } = req.query;
-        const ip = req.ip || req.headers['x-forwarded-for'] || 'unknown';
+        const { token } = req.query;
+        const ip = req.ip || 'unknown';
         const userAgent = req.headers['user-agent'];
         const shareCode = req.params.code;
 
-        // Rate limiting check
-        const rateLimit = await passwordService.checkRateLimit(shareCode, ip);
-        if (rateLimit.blocked) {
+        const result = await resolveShareDownload({ shareCode, ip, userAgent, password: null, token, validateOnly: false });
+
+        if (result.blocked) {
             return res.status(429).json({
                 success: false,
                 message: 'Too many failed attempts. Please try again later.',
             });
         }
-
-        let file;
-        try {
-            file = await shareService.downloadShare(shareCode, password, ip, userAgent, false);
-        } catch (err) {
-            if (err.statusCode === 403 && password) {
-                await passwordService.recordFailedAttempt(shareCode, ip);
-            }
-            throw err;
+        if (result.wrongPassword) {
+            return res.status(403).json({
+                success: false,
+                message: result.message,
+            });
         }
 
-        if (password) {
-            await passwordService.clearFailedAttempts(shareCode, ip);
-        }
-
-        const downloadUrl = storageService.generateDownloadUrl(file);
+        const downloadUrl = storageService.generateDownloadUrl(result.file);
 
         // HTTP 302 Redirect — browser follows this to Cloudinary
         return res.redirect(302, downloadUrl);

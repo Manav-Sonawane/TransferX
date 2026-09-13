@@ -17,6 +17,15 @@ const authenticate = async (req, res, next) => {
         const token = authHeader.split(' ')[1];
 
         const decoded = verifyAccessToken(token);
+
+        // The JWT payload alone can't reflect an account deactivated after the
+        // token was issued — re-check current state on every request instead
+        // of trusting a signature that stays valid for the token's full life.
+        const user = await User.findById(decoded.id).select('isActive');
+        if (!user || !user.isActive) {
+            return sendError(res, 401, 'Account no longer active. Please login again.');
+        }
+
         req.user = decoded; // { id, email, role, iat, exp }
         next();
     } catch (error) {
@@ -36,7 +45,10 @@ const optionalAuth = async (req, res, next) => {
         if (authHeader && authHeader.startsWith('Bearer ')) {
             const token = authHeader.split(' ')[1];
             const decoded = verifyAccessToken(token);
-            req.user = decoded;
+            const user = await User.findById(decoded.id).select('isActive');
+            if (user && user.isActive) {
+                req.user = decoded;
+            }
         }
     } catch {
         // Ignore token errors for optional auth

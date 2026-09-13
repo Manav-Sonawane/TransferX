@@ -2,18 +2,12 @@ import { useState } from 'react';
 import { Download, KeyRound, Clock, AlertCircle, RefreshCw, CheckCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { shareService } from '../../services/share.service';
+import { formatBytes } from '../../utils/helpers';
 import NBCard from '../ui/NBCard';
 import NBButton from '../ui/NBButton';
 import NBInput from '../ui/NBInput';
 import NBBadge from '../ui/NBBadge';
 import NBCodeInput from '../ui/NBCodeInput';
-
-const formatBytes = (bytes, d = 2) => {
-  if (!bytes || bytes === 0) return '0 B';
-  const k = 1024, s = ['B', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(d))} ${s[i]}`;
-};
 
 const AccessCard = () => {
   const [code,       setCode      ] = useState('');

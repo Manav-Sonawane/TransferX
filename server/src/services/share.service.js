@@ -99,8 +99,11 @@ const DownloadLog = require('../models/DownloadLog');
 
 /**
  * Validate password and execute download tracking (increment download counts, log analytics)
+ * @param {boolean} preValidated - Skip the password check because the caller already
+ *   verified it (via a short-lived access token) in a prior request. Used so the final
+ *   browser-navigation download request never needs the plaintext password in its URL.
  */
-const downloadShare = async (shareCode, password, ip, userAgent, validateOnly = false) => {
+const downloadShare = async (shareCode, password, ip, userAgent, validateOnly = false, preValidated = false) => {
     // 1. Fetch share with populated file and include password in query for validation
     const share = await Share.findOne({ shareCode, isActive: true })
         .populate('fileId');
@@ -123,8 +126,8 @@ const downloadShare = async (shareCode, password, ip, userAgent, validateOnly = 
         throw new BadRequestError('Download limit reached for this link');
     }
 
-    // 4. Validate Password if required
-    if (share.password) {
+    // 4. Validate Password if required (skipped if already verified via access token)
+    if (share.password && !preValidated) {
         if (!password) {
             throw new ForbiddenError('Password is required to download this file');
         }
@@ -135,12 +138,34 @@ const downloadShare = async (shareCode, password, ip, userAgent, validateOnly = 
     }
 
     if (!validateOnly) {
-        // 5. Track Download: Increment count & check limit closure
-        share.downloadCount += 1;
-        if (share.downloadLimit > 0 && share.downloadCount >= share.downloadLimit) {
-            share.isActive = false;
+        // 5. Track Download: atomically increment count only while still under the
+        // limit. A plain read-then-write (share.downloadCount += 1; share.save())
+        // is a TOCTOU race — concurrent requests near the limit can all pass the
+        // earlier check before any of them commit, letting downloadLimit be
+        // exceeded. findOneAndUpdate's filter+update is evaluated atomically
+        // against the current document per write, so only requests that are
+        // genuinely still under the limit at the moment of their write succeed.
+        const updated = await Share.findOneAndUpdate(
+            {
+                _id: share._id,
+                isActive: true,
+                $or: [
+                    { downloadLimit: 0 },
+                    { $expr: { $lt: ['$downloadCount', '$downloadLimit'] } },
+                ],
+            },
+            { $inc: { downloadCount: 1 } },
+            { new: true }
+        );
+
+        if (!updated) {
+            throw new BadRequestError('Download limit reached for this link');
         }
-        await share.save();
+
+        if (updated.downloadLimit > 0 && updated.downloadCount >= updated.downloadLimit && updated.isActive) {
+            updated.isActive = false;
+            await updated.save();
+        }
 
         // 6. Log Download Analytics
         await DownloadLog.create({

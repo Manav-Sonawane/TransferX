@@ -7,55 +7,79 @@ module.exports = (io) => {
 
         // Create a P2P Session
         socket.on('create-session', async ({ name, userId }, callback) => {
-            try {
-                const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-                let sessionCode = '';
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+            const generateCode = () => {
+                let code = '';
                 for (let i = 0; i < 5; i++) {
-                    sessionCode += chars.charAt(Math.floor(Math.random() * chars.length));
+                    code += chars.charAt(Math.floor(Math.random() * chars.length));
                 }
+                return code;
+            };
 
-                const session = await Session.create({
-                    sessionCode,
-                    hostId: userId || null,
-                    participants: [{ socketId: socket.id, name, userId: userId || null }],
-                    status: 'waiting',
-                });
+            // sessionCode is unique-indexed; a random 5-char code collides
+            // rarely but not never, so retry on a duplicate key error instead
+            // of failing the whole request (share.service.js already does the
+            // equivalent check-and-retry for share codes).
+            const MAX_ATTEMPTS = 5;
+            for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+                const sessionCode = generateCode();
+                try {
+                    const session = await Session.create({
+                        sessionCode,
+                        hostId: userId || null,
+                        participants: [{ socketId: socket.id, name, userId: userId || null }],
+                        status: 'waiting',
+                    });
 
-                socket.join(sessionCode);
-                socket.sessionCode = sessionCode;
-                socket.participantName = name;
+                    socket.join(sessionCode);
+                    socket.sessionCode = sessionCode;
+                    socket.participantName = name;
 
-                console.log(`[Socket] ${name} (${socket.id}) created session ${sessionCode}`);
-                callback({ success: true, session });
-            } catch (error) {
-                console.error('[Socket] Create session error:', error);
-                callback({ error: 'Internal server error' });
+                    console.log(`[Socket] ${name} (${socket.id}) created session ${sessionCode}`);
+                    return callback({ success: true, session });
+                } catch (error) {
+                    if (error.code === 11000 && attempt < MAX_ATTEMPTS) {
+                        continue; // sessionCode collision — try another code
+                    }
+                    console.error('[Socket] Create session error:', error);
+                    return callback({ error: 'Internal server error' });
+                }
             }
         });
 
         // Join a P2P Session
         socket.on('join-session', async ({ sessionCode, name, userId }, callback) => {
             try {
-                // Find active session
-                const session = await Session.findOne({ sessionCode, status: { $ne: 'closed' } });
-                
-                if (!session) {
-                    return callback({ error: 'Session not found or already closed' });
-                }
+                const participant = { socketId: socket.id, name, userId: userId || null };
 
-                // A session can typically only have 2 participants for a direct P2P transfer MVP
-                if (session.participants.length >= 2) {
+                // Atomically add the participant only if the session is open, not
+                // closed, and still has a free slot — a plain read-then-write here
+                // (find, check length, push, save) is a TOCTOU race: two joins
+                // arriving close together can both pass the length check before
+                // either save() commits, landing 3 participants in a 2-party session.
+                const session = await Session.findOneAndUpdate(
+                    {
+                        sessionCode,
+                        status: { $ne: 'closed' },
+                        $expr: { $lt: [{ $size: '$participants' }, 2] },
+                    },
+                    { $push: { participants: participant } },
+                    { new: true }
+                );
+
+                if (!session) {
+                    // Distinguish "doesn't exist / closed" from "full" for a useful error.
+                    const existing = await Session.findOne({ sessionCode });
+                    if (!existing || existing.status === 'closed') {
+                        return callback({ error: 'Session not found or already closed' });
+                    }
                     return callback({ error: 'Session is full' });
                 }
 
-                // Add participant to DB
-                const participant = { socketId: socket.id, name, userId: userId || null };
-                session.participants.push(participant);
-                
-                if (session.participants.length === 2) {
+                if (session.participants.length === 2 && session.status !== 'active') {
                     session.status = 'active';
+                    await session.save();
                 }
-                await session.save();
 
                 // Join the socket room
                 socket.join(sessionCode);
@@ -77,8 +101,23 @@ module.exports = (io) => {
             }
         });
 
-        // WebRTC Signaling: Forwarding messages to the specific peer
+        // WebRTC Signaling: Forwarding messages to the specific peer.
+        //
+        // Both the sender and the target must currently be members of the same
+        // session room. Without this check, any connected socket could address
+        // signaling traffic (including SDP offers) at any other connected socket
+        // id on the server, whether or not they share a session.
+        const isValidPeer = (sessionCode, targetSocketId) => {
+            if (!sessionCode || socket.sessionCode !== sessionCode) return false;
+            const room = io.sockets.adapter.rooms.get(sessionCode);
+            return !!room && room.has(targetSocketId);
+        };
+
         socket.on('webrtc-offer', ({ targetSocketId, offer, sessionCode }) => {
+            if (!isValidPeer(sessionCode, targetSocketId)) {
+                console.warn(`[Socket] Rejected offer from ${socket.id} to ${targetSocketId}: not a shared session`);
+                return;
+            }
             console.log(`[Socket] Forwarding offer from ${socket.id} to ${targetSocketId}`);
             socket.to(targetSocketId).emit('webrtc-offer', {
                 senderSocketId: socket.id,
@@ -87,6 +126,10 @@ module.exports = (io) => {
         });
 
         socket.on('webrtc-answer', ({ targetSocketId, answer, sessionCode }) => {
+            if (!isValidPeer(sessionCode, targetSocketId)) {
+                console.warn(`[Socket] Rejected answer from ${socket.id} to ${targetSocketId}: not a shared session`);
+                return;
+            }
             console.log(`[Socket] Forwarding answer from ${socket.id} to ${targetSocketId}`);
             socket.to(targetSocketId).emit('webrtc-answer', {
                 senderSocketId: socket.id,
@@ -95,6 +138,7 @@ module.exports = (io) => {
         });
 
         socket.on('webrtc-ice-candidate', ({ targetSocketId, candidate, sessionCode }) => {
+            if (!isValidPeer(sessionCode, targetSocketId)) return;
             // ICE candidates can be noisy, maybe don't log every single one
             socket.to(targetSocketId).emit('webrtc-ice-candidate', {
                 senderSocketId: socket.id,

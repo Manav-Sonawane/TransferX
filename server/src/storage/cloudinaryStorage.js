@@ -62,12 +62,12 @@ const uploadToCloudinary = (fileBuffer, originalName, mimeType, folder = 'transf
  * @param {'image' | 'video' | 'raw'} resourceType
  */
 const deleteFromCloudinary = async (publicId, resourceType) => {
-    try {
-        if (!publicId) return;
-        await cloudinary.uploader.destroy(publicId, { resource_type: resourceType });
-    } catch (error) {
-        console.error('Cloudinary delete error:', error);
-    }
+    if (!publicId) return;
+    // Let failures propagate instead of swallowing them: callers (file
+    // deletion, the expiry cleanup job) rely on this throwing to know the
+    // asset wasn't actually removed, so they can leave the DB row in place
+    // and retry rather than silently orphaning a still-billable Cloudinary asset.
+    await cloudinary.uploader.destroy(publicId, { resource_type: resourceType });
 };
 
 module.exports = {

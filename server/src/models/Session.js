@@ -45,7 +45,8 @@ const sessionSchema = new mongoose.Schema(
 );
 
 // ─── Indexes ──────────────────────────────────
-sessionSchema.index({ sessionCode: 1 });
+// sessionCode already gets a unique index from `unique: true` above — no need
+// to declare it again here.
 // Sessions should expire fairly quickly if abandoned
 sessionSchema.index({ createdAt: 1 }, { expireAfterSeconds: 3600 }); // Auto delete after 1 hour
 

@@ -4,7 +4,43 @@ const storageService = require('../services/storage.service');
 const accessTokenService = require('../services/accessToken.service');
 const passwordService = require('../services/password.service');
 const { sendSuccess } = require('../utils/response');
-const { NotFoundError, ForbiddenError, BadRequestError } = require('../utils/errors');
+const { NotFoundError, ForbiddenError, BadRequestError, UnauthorizedError } = require('../utils/errors');
+
+/**
+ * Look up whether a file has an active password-protected share.
+ */
+const findPasswordShare = (fileId) =>
+    Share.findOne({ fileId, isActive: true, password: { $ne: null } });
+
+/**
+ * Authorize a request for one of the /download/private/:fileId/* routes.
+ * These routes take no share code — the caller can only be the file's owner,
+ * or (for password-protected files) hold a valid access token from
+ * validate-access. Previously, non-password files fell back to "does *any*
+ * active share exist for this file", which granted access to anyone who
+ * merely guessed the fileId, without that person ever presenting a share
+ * code or password. Centralized here so the three call sites can't drift.
+ *
+ * @throws {UnauthorizedError|ForbiddenError} when access is not authorized
+ * @returns {Promise<{ passwordShare: object|null }>}
+ */
+const authorizePrivateFileAccess = async (file, userId, accessToken) => {
+    const passwordShare = await findPasswordShare(file._id);
+
+    if (passwordShare) {
+        if (!accessToken) {
+            throw new UnauthorizedError('Access token required. Please validate password first.');
+        }
+        const verification = accessTokenService.verifyAccessToken(accessToken, file._id.toString(), userId);
+        if (!verification.valid) {
+            throw new UnauthorizedError(verification.error);
+        }
+    } else if (!file.owner || file.owner.toString() !== userId) {
+        throw new ForbiddenError('You do not have access to this file');
+    }
+
+    return { passwordShare };
+};
 
 /**
  * GET /api/download/private/:fileId
@@ -21,21 +57,16 @@ const getFileMetadata = async (req, res, next) => {
             throw new NotFoundError('File not found');
         }
 
-        // Authorization: user must own the file or have a share for it
-        if (file.owner && file.owner.toString() !== userId) {
-            // Check if there's an active share for this file
-            const share = await Share.findOne({ fileId: file._id, isActive: true });
-            if (!share) {
-                throw new ForbiddenError('You do not have access to this file');
-            }
-        }
-
         // Check if any active share for this file has a password
-        const passwordShare = await Share.findOne({
-            fileId: file._id,
-            isActive: true,
-            password: { $ne: null },
-        });
+        const passwordShare = await findPasswordShare(file._id);
+
+        // Only the owner may see metadata for a non-shared file; a
+        // password-protected share additionally requires an access token,
+        // which this metadata endpoint doesn't have yet — so it only needs to
+        // know whether one exists, not verify it.
+        if (!passwordShare && (!file.owner || file.owner.toString() !== userId)) {
+            throw new ForbiddenError('You do not have access to this file');
+        }
 
         return sendSuccess(res, 200, 'File metadata retrieved', {
             fileId: file._id,
@@ -73,11 +104,7 @@ const validateAccess = async (req, res, next) => {
         }
 
         // Find the password-protected share for this file
-        const share = await Share.findOne({
-            fileId: file._id,
-            isActive: true,
-            password: { $ne: null },
-        });
+        const share = await findPasswordShare(file._id);
 
         if (!share) {
             throw new BadRequestError('This file is not password-protected');
@@ -149,38 +176,7 @@ const downloadFile = async (req, res, next) => {
             throw new BadRequestError('This file has expired');
         }
 
-        // Check if file is password-protected
-        const passwordShare = await Share.findOne({
-            fileId: file._id,
-            isActive: true,
-            password: { $ne: null },
-        });
-
-        if (passwordShare) {
-            // Verify access token
-            if (!accessToken) {
-                return res.status(401).json({
-                    success: false,
-                    message: 'Access token required. Please validate password first.',
-                });
-            }
-
-            const verification = accessTokenService.verifyAccessToken(accessToken, fileId, userId);
-            if (!verification.valid) {
-                return res.status(401).json({
-                    success: false,
-                    message: verification.error,
-                });
-            }
-        } else {
-            // Not password-protected: just check authorization
-            if (file.owner && file.owner.toString() !== userId) {
-                const share = await Share.findOne({ fileId: file._id, isActive: true });
-                if (!share) {
-                    throw new ForbiddenError('You do not have access to this file');
-                }
-            }
-        }
+        await authorizePrivateFileAccess(file, userId, accessToken);
 
         // Generate signed Cloudinary URL
         const downloadUrl = storageService.generateDownloadUrl(file);
@@ -212,36 +208,7 @@ const getDownloadUrl = async (req, res, next) => {
             throw new BadRequestError('This file has expired');
         }
 
-        // Check password protection
-        const passwordShare = await Share.findOne({
-            fileId: file._id,
-            isActive: true,
-            password: { $ne: null },
-        });
-
-        if (passwordShare) {
-            if (!accessToken) {
-                return res.status(401).json({
-                    success: false,
-                    message: 'Access token required. Please validate password first.',
-                });
-            }
-
-            const verification = accessTokenService.verifyAccessToken(accessToken, fileId, userId);
-            if (!verification.valid) {
-                return res.status(401).json({
-                    success: false,
-                    message: verification.error,
-                });
-            }
-        } else {
-            if (file.owner && file.owner.toString() !== userId) {
-                const share = await Share.findOne({ fileId: file._id, isActive: true });
-                if (!share) {
-                    throw new ForbiddenError('You do not have access to this file');
-                }
-            }
-        }
+        await authorizePrivateFileAccess(file, userId, accessToken);
 
         const downloadUrl = storageService.generateDownloadUrl(file);
 

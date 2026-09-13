@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { shareService } from '../services/share.service';
 import { File as FileIcon, Clock, ShieldAlert, Download, AlertCircle, RefreshCw, KeyRound, CheckCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
+import { formatBytes } from '../utils/helpers';
 import NBCard from '../components/ui/NBCard';
 import NBButton from '../components/ui/NBButton';
 import NBBadge from '../components/ui/NBBadge';
@@ -46,24 +47,30 @@ const DownloadPage = () => {
       const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
       if (shareData.hasPassword) {
-        // Step 1: Validate password first to get proper error messages & rate limiting
-        const validationEndpoint = `${apiBase}/shares/${code}/download?password=${encodeURIComponent(password)}`;
+        // Step 1: Validate password via POST body (never in the URL/query string,
+        // so it never lands in server access logs or browser history).
+        const validationEndpoint = `${apiBase}/shares/${code}/download`;
         const validationResponse = await fetch(validationEndpoint, {
-          method: 'GET',
+          method: 'POST',
           credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password }),
         });
 
+        const validationData = await validationResponse.json().catch(() => ({}));
+
         if (!validationResponse.ok) {
-          const errorData = await validationResponse.json().catch(() => ({}));
-          const remaining = errorData.attemptsRemaining;
-          const msg = errorData.message || `Error ${validationResponse.status}`;
+          const remaining = validationData.attemptsRemaining;
+          const msg = validationData.message || `Error ${validationResponse.status}`;
           throw new Error(remaining != null ? `${msg} (${remaining} attempt${remaining === 1 ? '' : 's'} remaining)` : msg);
         }
 
-        // Step 2: Password valid — navigate to redirect endpoint (browser follows 302 to Cloudinary)
+        // Step 2: Password valid — exchange it for a short-lived access token and
+        // navigate using only that opaque token (browser follows 302 to Cloudinary).
+        const accessToken = validationData?.data?.accessToken;
         toast.success('Password accepted! Starting download...');
         setDownloaded(true);
-        window.location.href = `${apiBase}/shares/${code}/redirect?password=${encodeURIComponent(password)}`;
+        window.location.href = `${apiBase}/shares/${code}/redirect?token=${encodeURIComponent(accessToken)}`;
       } else {
         // No password — navigate directly to the redirect endpoint
         // Browser follows the 302 redirect straight to Cloudinary CDN
@@ -76,13 +83,6 @@ const DownloadPage = () => {
     } finally {
       setDownloading(false);
     }
-  };
-
-  const formatBytes = (bytes, d = 2) => {
-    if (!bytes || bytes === 0) return '0 B';
-    const k = 1024, s = ['B', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(d))} ${s[i]}`;
   };
 
   /* ── Loading ── */

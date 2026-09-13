@@ -1,13 +1,15 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { socketService } from '../services/socket.service';
+import api from '../services/api';
 
 const CHUNK_SIZE = 16384; // 16KB per chunk
+const MAX_RECEIVE_SIZE = 100 * 1024 * 1024; // 100MB — matches the sender-side NBDropzone cap
 
-const ICE_SERVERS = [
+// Used immediately (and if /ice-servers can't be reached) so a connection can
+// still be attempted without blocking on the fetch below.
+const FALLBACK_ICE_SERVERS = [
   { urls: 'stun:stun.l.google.com:19302' },
   { urls: 'stun:stun1.l.google.com:19302' },
-  { urls: 'stun:stun2.l.google.com:19302' },
-  { urls: 'stun:stun3.l.google.com:19302' },
   {
     urls: 'turn:openrelay.metered.ca:80',
     username: 'openrelayproject',
@@ -15,11 +17,6 @@ const ICE_SERVERS = [
   },
   {
     urls: 'turn:openrelay.metered.ca:443',
-    username: 'openrelayproject',
-    credential: 'openrelayproject',
-  },
-  {
-    urls: 'turn:openrelay.metered.ca:443?transport=tcp',
     username: 'openrelayproject',
     credential: 'openrelayproject',
   },
@@ -47,9 +44,37 @@ export const useWebRTC = (sessionCode, myName) => {
   const iceCandidateQueue = useRef([]);
   const lastProgress = useRef(-1);
 
+  // Server-configured ICE servers (falls back to the public demo TURN relay
+  // until — or unless — the fetch below resolves). Fetched once per hook
+  // instance rather than hardcoded, so a real TURN server configured via
+  // server/.env actually reaches the client instead of being dead config.
+  const iceServers = useRef(FALLBACK_ICE_SERVERS);
+
+  // Object URLs created for received files — tracked so they can be revoked
+  // on unmount instead of leaking for the life of the tab.
+  const createdObjectUrls = useRef([]);
+
+  // Outgoing-file queue: sendFile can be called again before a prior transfer's
+  // chunked send finishes (e.g. rapid multi-file drop). Without a queue, both
+  // files' chunks interleave on the same data channel and corrupt each other.
+  const sendQueue = useRef([]);
+  const isSending = useRef(false);
+
   useEffect(() => {
     let isMounted = true;
     socket.current = socketService.connect();
+
+    // Fetch server-configured ICE servers (falls back silently to the default
+    // if this fails — connections still work, just via the public relay).
+    api.get('/ice-servers')
+      .then(({ data }) => {
+        if (isMounted && data?.data?.iceServers?.length) {
+          iceServers.current = data.data.iceServers;
+        }
+      })
+      .catch(() => {
+        // Keep the fallback list
+      });
 
     // 1. Create or Join session
     if (sessionCode === 'new') {
@@ -103,6 +128,9 @@ export const useWebRTC = (sessionCode, myName) => {
         peerConnection.current = null;
       }
       dataChannel.current = null;
+      // Otherwise a new peer joining the same session could have leftover
+      // ICE candidates from the previous peer applied to its connection.
+      iceCandidateQueue.current = [];
     };
 
     const onWebRTCOffer = async ({ senderSocketId, offer }) => {
@@ -145,6 +173,8 @@ export const useWebRTC = (sessionCode, myName) => {
         peerConnection.current.close();
         peerConnection.current = null;
       }
+      createdObjectUrls.current.forEach((url) => URL.revokeObjectURL(url));
+      createdObjectUrls.current = [];
     };
   }, [sessionCode, myName]);
 
@@ -153,7 +183,7 @@ export const useWebRTC = (sessionCode, myName) => {
     if (peerConnection.current) return;
 
     console.log(`[WebRTC] Creating new RTCPeerConnection`);
-    peerConnection.current = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+    peerConnection.current = new RTCPeerConnection({ iceServers: iceServers.current });
 
     peerConnection.current.onicecandidate = (event) => {
       if (event.candidate && targetSocketId.current) {
@@ -198,6 +228,12 @@ export const useWebRTC = (sessionCode, myName) => {
       console.log(`[WebRTC] ICE gathering state: ${peerConnection.current?.iceGatheringState}`);
     };
 
+    // Without this, a failure here surfaces only as a progress bar that
+    // silently stops moving, with no diagnostic signal of what went wrong.
+    peerConnection.current.onicecandidateerror = (event) => {
+      console.error(`[WebRTC] ICE candidate error (${event.errorCode}): ${event.errorText}`);
+    };
+
     peerConnection.current.onsignalingstatechange = () => {
       console.log(`[WebRTC] Signaling state changed to: ${peerConnection.current?.signalingState}`);
     };
@@ -222,6 +258,13 @@ export const useWebRTC = (sessionCode, myName) => {
       console.log('[WebRTC] Data channel readyState: closed');
     };
 
+    // A mid-transfer failure here otherwise looks identical to a stalled
+    // progress bar — surface it so it reads as "failed" instead of "frozen".
+    dataChannel.current.onerror = (event) => {
+      console.error('[WebRTC] Data channel error:', event.error || event);
+      setTransferProgress(null);
+    };
+
     dataChannel.current.onmessage = (event) => {
       // Receiving metadata
       if (typeof event.data === 'string') {
@@ -239,6 +282,19 @@ export const useWebRTC = (sessionCode, myName) => {
           const fileSize = message.file?.size || 0;
           const fileType = message.file?.type || 'application/octet-stream';
 
+          // The sender-side dropzone caps uploads at 100MB, but nothing enforced
+          // the same limit on the receiving end — a malicious or buggy peer could
+          // announce/stream an unbounded transfer and crash this tab by exhausting
+          // memory. Refuse anything that declares itself over the cap up front.
+          if (fileSize > MAX_RECEIVE_SIZE) {
+            console.error(`[WebRTC] Refusing incoming file "${fileName}" — declared size (${fileSize} bytes) exceeds the ${MAX_RECEIVE_SIZE} byte limit`);
+            incomingFileInfo.current = null;
+            receiveBuffer.current = [];
+            receivedSize.current = 0;
+            setTransferProgress(null);
+            return;
+          }
+
           incomingFileInfo.current = { name: fileName, size: fileSize, type: fileType };
           receiveBuffer.current = [];
           receivedSize.current = 0;
@@ -250,33 +306,48 @@ export const useWebRTC = (sessionCode, myName) => {
 
           const blob = new Blob(receiveBuffer.current, { type: incomingFileInfo.current.type });
           const url = URL.createObjectURL(blob);
-          
+          createdObjectUrls.current.push(url);
+
           const { name, size } = incomingFileInfo.current;
-          
+
           setReceivedFiles(prev => [...prev, {
             name,
             size,
             url
           }]);
-          
+
           setTransferProgress(null);
           receiveBuffer.current = [];
           receivedSize.current = 0;
           incomingFileInfo.current = null;
         }
-      } 
+      }
       // Receiving chunks
       else if (event.data instanceof ArrayBuffer) {
-        receiveBuffer.current.push(event.data);
+        // No active/accepted transfer (e.g. a file-start we refused for being
+        // oversized) — drop stray chunks instead of buffering them.
+        if (!incomingFileInfo.current) return;
+
         receivedSize.current += event.data.byteLength;
-        
-        if (incomingFileInfo.current) {
-          const progress = Math.round((receivedSize.current / incomingFileInfo.current.size) * 100);
-          // Throttle updates: only update if progress increased by at least 1% or is 100%
-          if (progress > lastProgress.current || progress === 100) {
-            lastProgress.current = progress;
-            setTransferProgress(prev => prev ? { ...prev, progress } : null);
-          }
+
+        // A peer that lies about (or exceeds) its declared file-start size
+        // shouldn't be able to keep growing the buffer past the cap either.
+        if (receivedSize.current > MAX_RECEIVE_SIZE || receivedSize.current > incomingFileInfo.current.size) {
+          console.error('[WebRTC] Incoming transfer exceeded its declared size — aborting');
+          receiveBuffer.current = [];
+          receivedSize.current = 0;
+          incomingFileInfo.current = null;
+          setTransferProgress(null);
+          return;
+        }
+
+        receiveBuffer.current.push(event.data);
+
+        const progress = Math.round((receivedSize.current / incomingFileInfo.current.size) * 100);
+        // Throttle updates: only update if progress increased by at least 1% or is 100%
+        if (progress > lastProgress.current || progress === 100) {
+          lastProgress.current = progress;
+          setTransferProgress(prev => prev ? { ...prev, progress } : null);
         }
       }
     };
@@ -380,9 +451,22 @@ export const useWebRTC = (sessionCode, myName) => {
     }
   };
 
-  const sendFile = useCallback((file) => {
+  const processSendQueue = () => {
+    if (isSending.current) return; // a send is already driving the data channel
+    const next = sendQueue.current.shift();
+    if (!next) return;
+
+    isSending.current = true;
+    sendFileInternal(next, () => {
+      isSending.current = false;
+      processSendQueue();
+    });
+  };
+
+  const sendFileInternal = (file, onComplete) => {
     if (!dataChannel.current || dataChannel.current.readyState !== 'open') {
       console.error('[WebRTC] Data channel not open');
+      onComplete();
       return;
     }
 
@@ -437,14 +521,24 @@ export const useWebRTC = (sessionCode, myName) => {
         } else {
           // File complete
           dataChannel.current.send(JSON.stringify({ type: 'file-end' }));
-          setTimeout(() => setTransferProgress(null), 1000); 
+          setTimeout(() => setTransferProgress(null), 1000);
+          onComplete();
         }
       };
-      
+
       reader.readAsArrayBuffer(slice);
     };
 
     readSlice(0);
+  };
+
+  const sendFile = useCallback((file) => {
+    if (!dataChannel.current || dataChannel.current.readyState !== 'open') {
+      console.error('[WebRTC] Data channel not open');
+      return;
+    }
+    sendQueue.current.push(file);
+    processSendQueue();
   }, []);
 
   return {

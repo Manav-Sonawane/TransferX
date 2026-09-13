@@ -4,11 +4,12 @@ const router = express.Router();
 const fileController = require('../controllers/file.controller');
 const upload = require('../middlewares/upload.middleware');
 const { authenticate, optionalAuth } = require('../middlewares/auth.middleware');
+const { uploadRateLimiter } = require('../middlewares/rateLimit.middleware');
 
 // POST /api/files/upload
 // Uses optionalAuth so both guests and logged-in users can upload
 // upload.single('file') handles multipart/form-data
-router.post('/upload', optionalAuth, upload.single('file'), fileController.uploadFile);
+router.post('/upload', uploadRateLimiter, optionalAuth, upload.single('file'), fileController.uploadFile);
 
 // GET /api/files (Authenticated users only)
 router.get('/', authenticate, fileController.getUserFiles);

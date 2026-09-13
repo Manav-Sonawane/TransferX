@@ -20,6 +20,33 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
+// A single in-flight refresh promise shared by every concurrent 401.
+// Without this, each request that 401s at the same time independently calls
+// /auth/refresh. The backend rotates refresh tokens on every use and treats a
+// second use of an already-rotated token as reuse — wiping ALL of that user's
+// sessions. Two requests 401ing together was enough to trigger it.
+let refreshPromise = null;
+
+const performRefresh = () => {
+  if (!refreshPromise) {
+    refreshPromise = axios
+      .post(
+        `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/auth/refresh`,
+        {},
+        { withCredentials: true }
+      )
+      .then(({ data }) => {
+        const newToken = data.data.accessToken;
+        localStorage.setItem('accessToken', newToken);
+        return newToken;
+      })
+      .finally(() => {
+        refreshPromise = null;
+      });
+  }
+  return refreshPromise;
+};
+
 // ─── Response Interceptor ─────────────────────
 api.interceptors.response.use(
   (response) => response,
@@ -31,31 +58,11 @@ api.interceptors.response.use(
       originalRequest._retry = true;
 
       try {
-        const { data } = await axios.post(
-          `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/auth/refresh`,
-          {},
-          { withCredentials: true }
-        );
-
-        const newToken = data.data.accessToken;
-        localStorage.setItem('accessToken', newToken);
+        const newToken = await performRefresh();
         originalRequest.headers.Authorization = `Bearer ${newToken}`;
-
-        // Fetch current user to update AuthContext state
-        try {
-          const { data: userData } = await axios.get(
-            `${import.meta.env.VITE_API_URL || 'http://localhost:5000/api'}/auth/me`,
-            { withCredentials: true }
-          );
-          localStorage.setItem('user', JSON.stringify(userData.data.user));
-        } catch {
-          // ignore user fetch errors during token refresh
-        }
-
         return api(originalRequest);
       } catch (_err) {
         localStorage.removeItem('accessToken');
-        localStorage.removeItem('user');
         return Promise.reject(_err);
       }
     }

@@ -5,19 +5,13 @@ import toast from 'react-hot-toast';
 import { fileService } from '../../services/file.service';
 import { shareService } from '../../services/share.service';
 import { useAuth } from '../../context/AuthContext';
+import { formatBytes } from '../../utils/helpers';
 import NBCard from '../ui/NBCard';
 import NBButton from '../ui/NBButton';
 import NBInput from '../ui/NBInput';
 import NBBadge from '../ui/NBBadge';
 import NBDropzone from '../ui/NBDropzone';
 import NBProgress from '../ui/NBProgress';
-
-const formatBytes = (bytes, d = 2) => {
-  if (!bytes || bytes === 0) return '0 B';
-  const k = 1024, s = ['B', 'KB', 'MB', 'GB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return `${parseFloat((bytes / Math.pow(k, i)).toFixed(d))} ${s[i]}`;
-};
 
 const EXPIRY = [
   { v: '1',  l: '1 DAY'  },

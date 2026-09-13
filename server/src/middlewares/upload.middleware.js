@@ -1,24 +1,21 @@
 const multer = require('multer');
-const { AppError } = require('../utils/errors');
 
 const MAX_FILE_SIZE = parseInt(process.env.MAX_FILE_SIZE, 10) || 100 * 1024 * 1024; // 100 MB
 
 const storage = multer.memoryStorage();
 
-const fileFilter = (req, file, cb) => {
-    // Optionally restrict some mime types, e.g., executables
-    if (file.mimetype === 'application/x-msdownload' || file.mimetype === 'application/exe') {
-        return cb(new AppError('Executables are not allowed', 400), false);
-    }
-    cb(null, true);
-};
-
+// No fileFilter: this is a general-purpose file-sharing app (the UI
+// advertises "Any file type"), and multer's `file.mimetype` is just the
+// client-supplied Content-Type of the form field — trivially spoofable, so a
+// filter keyed on it (as this previously was) blocks nothing a real attacker
+// couldn't bypass by relabeling the upload. Real content-type enforcement
+// would need server-side magic-byte sniffing, which isn't a stated
+// requirement here.
 const upload = multer({
     storage,
     limits: {
         fileSize: MAX_FILE_SIZE,
     },
-    fileFilter,
 });
 
 module.exports = upload;

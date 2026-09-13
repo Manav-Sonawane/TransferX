@@ -4,6 +4,7 @@ import { UploadCloud, File as FileIcon, X, CheckCircle, AlertCircle, Clock, Shie
 import { fileService } from '../services/file.service';
 import { shareService } from '../services/share.service';
 import { useAuth } from '../context/AuthContext';
+import { formatBytes } from '../utils/helpers';
 import toast from 'react-hot-toast';
 
 const UploadPage = () => {
@@ -112,16 +113,6 @@ const UploadPage = () => {
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text);
     toast.success('Link copied to clipboard!');
-  };
-
-  // Format bytes helper
-  const formatBytes = (bytes, decimals = 2) => {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const dm = decimals < 0 ? 0 : decimals;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
   };
 
   return (

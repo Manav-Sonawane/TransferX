@@ -1,5 +1,6 @@
 const User = require('../models/User');
 const { generateAccessToken, generateRefreshToken, verifyRefreshToken } = require('../utils/jwt');
+const { hashToken } = require('../utils/hashToken');
 const {
     ConflictError,
     UnauthorizedError,
@@ -35,8 +36,9 @@ const register = async ({ name, email, password }) => {
 
     const refreshToken = generateRefreshToken({ id: user._id });
 
-    // Store refresh token
-    user.refreshTokens.push(refreshToken);
+    // Store only a hash of the refresh token — the plaintext JWT never
+    // touches the database, so a DB read alone can't hand over a reusable session.
+    user.refreshTokens.push(hashToken(refreshToken));
     await user.save({ validateBeforeSave: false });
 
     return { user: user.toPublicJSON(), accessToken, refreshToken };
@@ -70,8 +72,8 @@ const login = async ({ email, password }) => {
 
     const refreshToken = generateRefreshToken({ id: user._id });
 
-    // Rotate: add new refresh token (keep max 5 sessions)
-    user.refreshTokens.push(refreshToken);
+    // Rotate: add new refresh token hash (keep max 5 sessions)
+    user.refreshTokens.push(hashToken(refreshToken));
     if (user.refreshTokens.length > 5) {
         user.refreshTokens = user.refreshTokens.slice(-5);
     }
@@ -88,7 +90,8 @@ const logout = async (userId, refreshToken) => {
     const user = await User.findById(userId).select('+refreshTokens');
     if (!user) return;
 
-    user.refreshTokens = user.refreshTokens.filter((t) => t !== refreshToken);
+    const tokenHash = hashToken(refreshToken);
+    user.refreshTokens = user.refreshTokens.filter((t) => t !== tokenHash);
     await user.save({ validateBeforeSave: false });
 };
 
@@ -112,8 +115,10 @@ const refreshAccessToken = async (refreshToken) => {
         throw new UnauthorizedError('User not found');
     }
 
+    const tokenHash = hashToken(refreshToken);
+
     // Check refresh token is in the stored list
-    if (!user.refreshTokens.includes(refreshToken)) {
+    if (!user.refreshTokens.includes(tokenHash)) {
         // Token reuse detected — invalidate all sessions
         user.refreshTokens = [];
         await user.save({ validateBeforeSave: false });
@@ -129,8 +134,8 @@ const refreshAccessToken = async (refreshToken) => {
     const newRefreshToken = generateRefreshToken({ id: user._id });
 
     // Rotate refresh token
-    user.refreshTokens = user.refreshTokens.filter((t) => t !== refreshToken);
-    user.refreshTokens.push(newRefreshToken);
+    user.refreshTokens = user.refreshTokens.filter((t) => t !== tokenHash);
+    user.refreshTokens.push(hashToken(newRefreshToken));
     await user.save({ validateBeforeSave: false });
 
     return { accessToken: newAccessToken, refreshToken: newRefreshToken, user: user.toPublicJSON() };

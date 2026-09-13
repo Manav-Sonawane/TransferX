@@ -1,4 +1,5 @@
 const authService = require('../services/auth.service');
+const { verifyRefreshToken } = require('../utils/jwt');
 const { sendSuccess, sendError } = require('../utils/response');
 
 /**
@@ -39,10 +40,19 @@ const login = async (req, res, next) => {
 const logout = async (req, res, next) => {
     try {
         const refreshToken = req.cookies?.refreshToken;
-        const userId = req.user?.id;
 
-        if (userId && refreshToken) {
-            await authService.logout(userId, refreshToken);
+        // Derive the user from the refresh token itself rather than req.user —
+        // this route has no auth middleware in front of it (by design, so logout
+        // works even if the access token already expired), so req.user is never
+        // populated here. Without this, the refresh token was never actually
+        // revoked server-side; only the cookie was cleared.
+        if (refreshToken) {
+            try {
+                const { id: userId } = verifyRefreshToken(refreshToken);
+                await authService.logout(userId, refreshToken);
+            } catch {
+                // Invalid/expired refresh token — nothing to revoke server-side.
+            }
         }
 
         res.clearCookie('refreshToken', { path: '/' });

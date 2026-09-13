@@ -24,12 +24,6 @@ const uploadFile = async ({ user, file, expiryDays = 7, visibility = 'public' })
     const cleanFileName = parsedPath.name;
 
     // 1. Upload to Cloudinary first
-    console.log({
-        originalname: file.originalname,
-        mimetype: file.mimetype,
-        size: file.size,
-        bufferLength: file.buffer.length
-    });
     let uploadResult;
     try {
         uploadResult = await uploadToCloudinary(buffer, originalname, mimetype);
@@ -61,9 +55,16 @@ const uploadFile = async ({ user, file, expiryDays = 7, visibility = 'public' })
 
         return fileDoc;
     } catch (dbError) {
-        // Rollback: delete from Cloudinary to prevent orphan files
+        // Rollback: delete from Cloudinary to prevent orphan files. If the
+        // rollback itself fails, don't let it mask the original DB error —
+        // log it separately (the expiry cleanup job will also eventually
+        // encounter this file if it somehow persisted) and still surface dbError.
         console.error('Database write failed. Rolling back Cloudinary upload...', dbError);
-        await deleteFromCloudinary(uploadResult.public_id, uploadResult.resource_type);
+        try {
+            await deleteFromCloudinary(uploadResult.public_id, uploadResult.resource_type);
+        } catch (rollbackError) {
+            console.error('Cloudinary rollback also failed — asset may be orphaned:', rollbackError);
+        }
         throw dbError;
     }
 };
@@ -85,8 +86,10 @@ const deleteFile = async (fileId, userId) => {
         throw new NotFoundError('File not found');
     }
 
-    // Authorization check
-    if (file.owner && file.owner.toString() !== userId) {
+    // Authorization check: only the owning account may delete a file.
+    // Guest (ownerless) uploads have no accountable owner, so no authenticated
+    // user is authorized to delete them through this endpoint.
+    if (!file.owner || file.owner.toString() !== userId) {
         throw new ForbiddenError('You do not have permission to delete this file');
     }
 

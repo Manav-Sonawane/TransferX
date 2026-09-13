@@ -4,6 +4,7 @@ import { LogOut, Upload, Users, FileText, HardDrive, Download, Activity, Refresh
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import api from '../services/api.js';
+import { fileService } from '../services/file.service';
 import { formatBytes } from '../utils/helpers';
 import NBButton from '../components/ui/NBButton';
 import NBCard from '../components/ui/NBCard';
@@ -98,6 +99,20 @@ const DashboardPage = () => {
   const handleLogout = async () => {
     await logout();
     toast.success('Logged out successfully');
+  };
+
+  const handleDeleteFile = async (fileId) => {
+    try {
+      await fileService.deleteFile(fileId);
+      toast.success('File deleted');
+      setData((prev) => prev && {
+        ...prev,
+        stats: { ...prev.stats, totalFiles: Math.max(0, prev.stats.totalFiles - 1) },
+        recentFiles: prev.recentFiles.filter((f) => (f.id || f._id) !== fileId),
+      });
+    } catch (error) {
+      toast.error(error?.response?.data?.message || 'Failed to delete file');
+    }
   };
 
   return (
@@ -203,7 +218,7 @@ const DashboardPage = () => {
                 </div>
                 <div className="p-5">
                   {data.recentFiles?.length > 0 ? (
-                    data.recentFiles.map((f) => <FileRow key={f.id || f._id} file={f} />)
+                    data.recentFiles.map((f) => <FileRow key={f.id || f._id} file={f} onDelete={handleDeleteFile} />)
                   ) : (
                     <p className="text-xs text-center py-6" style={{ fontFamily: 'var(--font-mono)', color: '#9ca3af' }}>No files yet</p>
                   )}

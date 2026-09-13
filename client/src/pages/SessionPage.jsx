@@ -9,6 +9,7 @@ import NBButton from '../components/ui/NBButton';
 import NBBadge from '../components/ui/NBBadge';
 import NBProgress from '../components/ui/NBProgress';
 import NBDropzone from '../components/ui/NBDropzone';
+import NBQRCode from '../components/ui/NBQRCode';
 
 const SessionPage = () => {
   const { sessionCode } = useParams();
@@ -26,12 +27,23 @@ const SessionPage = () => {
     sendFile(file);
   }, [connectionStatus, sendFile]);
 
+  const joinLink = activeSessionCode ? `${window.location.origin}/p2p/${activeSessionCode}` : '';
+  const [linkCopied, setLinkCopied] = useState(false);
+
   const copyCode = () => {
     if (!activeSessionCode) return;
     navigator.clipboard.writeText(activeSessionCode);
     setCopied(true);
     toast.success('Session code copied!');
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const copyLink = () => {
+    if (!joinLink) return;
+    navigator.clipboard.writeText(joinLink);
+    setLinkCopied(true);
+    toast.success('Session link copied!');
+    setTimeout(() => setLinkCopied(false), 2000);
   };
 
   const leaveSession = () => navigate('/');
@@ -93,6 +105,12 @@ const SessionPage = () => {
                 <span className="text-xs font-bold uppercase tracking-widest text-white" style={{ fontFamily: 'var(--font-mono)' }}>Session Code</span>
               </div>
               <div className="p-5">
+                {activeSessionCode && (
+                  <div className="flex justify-center mb-4">
+                    <NBQRCode value={joinLink} label="Scan to join on mobile" />
+                  </div>
+                )}
+
                 <div
                   className="flex items-center justify-between p-4 mb-3"
                   style={{ border: 'var(--nb-border)', background: 'var(--nb-gray)' }}
@@ -114,8 +132,32 @@ const SessionPage = () => {
                       : <Copy size={18} />}
                   </button>
                 </div>
+
+                {activeSessionCode && (
+                  <div
+                    className="flex items-center gap-2 p-2.5 mb-3"
+                    style={{ border: '2px solid var(--nb-black)' }}
+                  >
+                    <code
+                      className="text-xs flex-1 min-w-0 truncate"
+                      style={{ fontFamily: 'var(--font-mono)', color: 'var(--nb-blue)' }}
+                    >
+                      {joinLink}
+                    </code>
+                    <button
+                      onClick={copyLink}
+                      className="p-1.5 hover:bg-gray-200 transition-colors flex-shrink-0"
+                      aria-label="Copy session link"
+                    >
+                      {linkCopied
+                        ? <Check size={14} style={{ color: 'var(--nb-green)' }} />
+                        : <Copy size={14} />}
+                    </button>
+                  </div>
+                )}
+
                 <p className="text-xs text-center" style={{ fontFamily: 'var(--font-mono)', color: '#6b7280' }}>
-                  Share this code with the receiver to connect.
+                  Share the code, link, or QR with the receiver to connect.
                 </p>
               </div>
             </NBCard>

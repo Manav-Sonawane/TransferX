@@ -12,6 +12,7 @@ import NBInput from '../ui/NBInput';
 import NBBadge from '../ui/NBBadge';
 import NBDropzone from '../ui/NBDropzone';
 import NBProgress from '../ui/NBProgress';
+import NBQRCode from '../ui/NBQRCode';
 
 const EXPIRY = [
   { v: '1',  l: '1 DAY'  },
@@ -126,6 +127,11 @@ const ShareCard = () => {
               <span className="text-xs font-bold uppercase tracking-wider text-white" style={{ fontFamily: 'var(--font-heading)' }}>
                 Share Created!
               </span>
+            </div>
+
+            {/* QR code — quickest path for a mobile user */}
+            <div className="flex justify-center py-1">
+              <NBQRCode value={shareLink} />
             </div>
 
             {/* Code block */}

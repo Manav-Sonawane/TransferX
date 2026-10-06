@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useWebRTC } from '../hooks/useWebRTC';
-import { Users, UserPlus, FileUp, FileDown, ShieldCheck, Copy, Check, Smartphone, ArrowLeft } from 'lucide-react';
+import { Users, UserPlus, FileUp, FileDown, ShieldCheck, Copy, Check, Smartphone, ArrowLeft, Code2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { formatBytes } from '../utils/helpers';
 import NBCard from '../components/ui/NBCard';
@@ -16,8 +16,9 @@ const SessionPage = () => {
   const navigate = useNavigate();
   const [myName] = useState(() => `User_${Math.floor(Math.random() * 10000)}`);
   const [copied, setCopied] = useState(false);
+  const [textSnippet, setTextSnippet] = useState('');
 
-  const { activeSessionCode, peerName, connectionStatus, transferProgress, receivedFiles, sendFile } = useWebRTC(sessionCode, myName);
+  const { activeSessionCode, peerName, connectionStatus, transferProgress, receivedFiles, sendFile, receivedTexts, sendText } = useWebRTC(sessionCode, myName);
 
   const onFileAccepted = useCallback((file) => {
     if (connectionStatus !== 'connected') {
@@ -49,6 +50,27 @@ const SessionPage = () => {
   const leaveSession = () => navigate('/');
 
   const isConnected = connectionStatus === 'connected';
+  const wordCount = textSnippet.trim() ? textSnippet.trim().split(/\s+/).length : 0;
+
+  const onSendText = () => {
+    if (!isConnected) {
+      toast.error('Waiting for peer to connect before sending text.');
+      return;
+    }
+    if (!sendText(textSnippet)) return;
+    setTextSnippet('');
+    toast.success('Text snippet sent!');
+  };
+
+  const copyText = async (text) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success('Snippet copied!');
+    } catch (error) {
+      console.error('[SessionPage] Failed to copy snippet:', error);
+      toast.error('Could not copy snippet.');
+    }
+  };
 
   return (
     <div className="nb-page" style={{ minHeight: '100vh' }}>
@@ -259,6 +281,82 @@ const SessionPage = () => {
                 />
               </div>
             </NBCard>
+
+            {/* Live Text / Code Sharing */}
+            <NBCard>
+              <div className="nb-card-header-blue">
+                <div className="flex items-center gap-2">
+                  <Code2 size={14} color="white" />
+                  <span className="text-xs font-bold uppercase tracking-widest text-white" style={{ fontFamily: 'var(--font-mono)' }}>
+                    Share Live Text / Code
+                  </span>
+                </div>
+              </div>
+              <div className="p-4">
+                <textarea
+                  value={textSnippet}
+                  onChange={(event) => setTextSnippet(event.target.value)}
+                  placeholder="Paste text or code to share with your peer..."
+                  aria-label="Text or code snippet"
+                  rows={6}
+                  className="w-full p-3 resize-y"
+                  style={{
+                    border: 'var(--nb-border)',
+                    background: 'var(--nb-gray)',
+                    fontFamily: 'var(--font-mono)',
+                    fontSize: '0.8rem',
+                    outline: 'none'
+                  }}
+                />
+                <div className="flex flex-wrap items-center justify-between gap-3 mt-3">
+                  <span className="text-xs" style={{ fontFamily: 'var(--font-mono)', color: '#6b7280' }}>
+                    {textSnippet.length} characters · {wordCount} words
+                  </span>
+                  <NBButton
+                    variant="primary"
+                    size="sm"
+                    onClick={onSendText}
+                    disabled={!isConnected || !textSnippet.trim()}
+                  >
+                    Send Text Snippet
+                  </NBButton>
+                </div>
+              </div>
+            </NBCard>
+
+            {/* Received Text */}
+            {receivedTexts.length > 0 && (
+              <NBCard>
+                <div className="nb-card-header-white">
+                  <div className="flex items-center gap-2">
+                    <Code2 size={14} />
+                    <span className="text-xs font-bold uppercase tracking-widest" style={{ fontFamily: 'var(--font-mono)' }}>
+                      Received Snippets ({receivedTexts.length})
+                    </span>
+                  </div>
+                </div>
+                <div className="p-3 flex flex-col gap-3">
+                  {receivedTexts.map((snippet, idx) => (
+                    <div key={`${snippet.timestamp}-${idx}`} className="p-3" style={{ border: 'var(--nb-border-thin)', background: 'var(--nb-gray)' }}>
+                      <div className="flex items-center justify-between gap-3 mb-2">
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold truncate" style={{ fontFamily: 'var(--font-heading)' }}>{snippet.sender}</p>
+                          <p className="text-[10px]" style={{ fontFamily: 'var(--font-mono)', color: '#6b7280' }}>
+                            {new Date(snippet.timestamp).toLocaleTimeString()}
+                          </p>
+                        </div>
+                        <NBButton variant="ghost" size="sm" onClick={() => copyText(snippet.text)}>
+                          <Copy size={13} /> Copy
+                        </NBButton>
+                      </div>
+                      <pre className="whitespace-pre-wrap break-words max-h-64 overflow-auto p-3" style={{ border: 'var(--nb-border-thin)', background: 'white', fontFamily: 'var(--font-mono)', fontSize: '0.75rem' }}>
+                        {snippet.text}
+                      </pre>
+                    </div>
+                  ))}
+                </div>
+              </NBCard>
+            )}
 
             {/* Received Files */}
             {receivedFiles.length > 0 && (

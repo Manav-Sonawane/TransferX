@@ -12,8 +12,8 @@ const NBCard = ({
 }) => {
   const shadowStyle =
     shadow === 'lg' ? 'var(--nb-shadow-lg)' :
-    shadow === 'sm' ? 'var(--nb-shadow-sm)' :
-                      'var(--nb-shadow)';
+      shadow === 'sm' ? 'var(--nb-shadow-sm)' :
+        'var(--nb-shadow)';
 
   return (
     <div

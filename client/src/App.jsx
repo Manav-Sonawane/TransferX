@@ -26,18 +26,18 @@ function App() {
           toastOptions={{
             duration: 3000,
             style: {
-              background:   '#FFFFFF',
-              color:        '#0A0A0A',
-              border:       '3px solid #0A0A0A',
+              background: '#FFFFFF',
+              color: '#0A0A0A',
+              border: '3px solid #0A0A0A',
               borderRadius: '0px',
-              boxShadow:    '5px 5px 0 #0A0A0A',
-              fontSize:     '13px',
-              fontFamily:   '"Space Grotesk", sans-serif',
-              fontWeight:   '600',
-              padding:      '12px 16px',
+              boxShadow: '5px 5px 0 #0A0A0A',
+              fontSize: '13px',
+              fontFamily: '"Space Grotesk", sans-serif',
+              fontWeight: '600',
+              padding: '12px 16px',
             },
             success: { iconTheme: { primary: '#5CB85C', secondary: '#FFFFFF' } },
-            error:   { iconTheme: { primary: '#FF6B6B', secondary: '#FFFFFF' } },
+            error: { iconTheme: { primary: '#FF6B6B', secondary: '#FFFFFF' } },
           }}
         />
 
@@ -66,7 +66,7 @@ function App() {
           <Route path="/upload" element={<UploadPage />} />
           <Route path="/access" element={<AccessPage />} />
           <Route path="/share/:code" element={<DownloadPage />} />
-          
+
           <Route path="/p2p" element={<P2PPage />} />
           <Route path="/p2p/:sessionCode" element={<SessionPage />} />
           {/* Protected Routes — require auth */}

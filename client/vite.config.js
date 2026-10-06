@@ -6,5 +6,6 @@ export default defineConfig({
   plugins: [react()],
   server: {
     host: true, // expose on LAN (0.0.0.0) so other devices can connect
+    allowedHosts: ['.ngrok-free.dev'],
   },
 })

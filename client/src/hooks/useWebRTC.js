@@ -27,6 +27,7 @@ export const useWebRTC = (sessionCode, myName) => {
   const [connectionStatus, setConnectionStatus] = useState('waiting'); // waiting, connecting, connected, disconnected
   const [transferProgress, setTransferProgress] = useState(null); // { fileName, progress, direction: 'sending' | 'receiving' }
   const [receivedFiles, setReceivedFiles] = useState([]);
+  const [receivedTexts, setReceivedTexts] = useState([]);
 
   const peerConnection = useRef(null);
   const dataChannel = useRef(null);
@@ -320,6 +321,12 @@ export const useWebRTC = (sessionCode, myName) => {
           receiveBuffer.current = [];
           receivedSize.current = 0;
           incomingFileInfo.current = null;
+        } else if (message.type === 'text' && typeof message.content === 'string') {
+          setReceivedTexts(prev => [...prev, {
+            text: message.content,
+            sender: message.sender || 'Peer',
+            timestamp: message.timestamp || new Date().toISOString()
+          }]);
         }
       }
       // Receiving chunks
@@ -541,12 +548,32 @@ export const useWebRTC = (sessionCode, myName) => {
     processSendQueue();
   }, []);
 
+  const sendText = useCallback((textContent) => {
+    const content = textContent.trim();
+    if (!content) return false;
+
+    if (!dataChannel.current || dataChannel.current.readyState !== 'open') {
+      console.error('[WebRTC] Data channel not open');
+      return false;
+    }
+
+    dataChannel.current.send(JSON.stringify({
+      type: 'text',
+      content,
+      sender: myName,
+      timestamp: new Date().toISOString()
+    }));
+    return true;
+  }, [myName]);
+
   return {
     activeSessionCode,
     peerName,
     connectionStatus,
     transferProgress,
     receivedFiles,
-    sendFile
+    sendFile,
+    receivedTexts,
+    sendText
   };
 };

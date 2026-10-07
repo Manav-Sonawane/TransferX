@@ -1,7 +1,7 @@
 const File = require('../models/File');
 const User = require('../models/User');
 const { uploadToCloudinary, deleteFromCloudinary, getResourceType } = require('../storage/cloudinaryStorage');
-const { NotFoundError, ForbiddenError } = require('../utils/errors');
+const { AppError, NotFoundError, ForbiddenError } = require('../utils/errors');
 const crypto = require('crypto');
 const path = require('path');
 
@@ -28,6 +28,12 @@ const uploadFile = async ({ user, file, expiryDays = 7, visibility = 'public' })
     try {
         uploadResult = await uploadToCloudinary(buffer, originalname, mimetype);
     } catch (uploadError) {
+        if (uploadError.http_code === 403) {
+            throw new AppError(
+                'Cloudinary rejected the upload. Verify that the active API key has upload permissions and that the Cloudinary account is active.',
+                502
+            );
+        }
         throw new Error(`Cloudinary upload failed: ${uploadError.message}`);
     }
 

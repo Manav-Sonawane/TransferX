@@ -17,6 +17,7 @@ const AccessCard = () => {
   const [fetchError, setFetchError] = useState('');
   const [password,   setPassword  ] = useState('');
   const [downloaded, setDownloaded] = useState(false);
+  const [downloading, setDownloading] = useState(false);
 
   const handleCodeChange = (val) => {
     setCode(val);
@@ -73,19 +74,39 @@ const AccessCard = () => {
 
         // Step 2: Password valid — exchange for short-lived access token
         const accessToken = validationData?.data?.accessToken;
+        if (!accessToken) {
+          throw new Error('Download authorization failed. Please try again.');
+        }
         toast.success('Password accepted! Starting download...');
-        setDownloaded(true);
-        window.location.href = `${apiBase}/shares/${code}/redirect?token=${encodeURIComponent(accessToken)}`;
+        await downloadThroughApi(`${apiBase}/shares/${code}/file?token=${encodeURIComponent(accessToken)}`);
       } else {
         toast.success('Download starting...');
-        setDownloaded(true);
-        window.location.href = `${apiBase}/shares/${code}/redirect`;
+        await downloadThroughApi(`${apiBase}/shares/${code}/file`);
       }
     } catch (err) {
       toast.error(err.message || 'Download failed. Please try again.');
     } finally {
       setDownloading(false);
     }
+  };
+
+  const downloadThroughApi = async (url) => {
+    const response = await fetch(url, { credentials: 'include' });
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      throw new Error(body.message || `Download failed (HTTP ${response.status})`);
+    }
+
+    const blob = await response.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = objectUrl;
+    anchor.download = shareData.file.originalName || 'download';
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(objectUrl);
+    setDownloaded(true);
   };
 
   const reset = () => {

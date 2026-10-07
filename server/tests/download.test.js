@@ -471,6 +471,21 @@ describe('URL Generation', () => {
         // The Cloudinary URL should contain the attachment flag without filename
         assert.ok(url.includes('fl_attachment'));
     });
+
+    it('should not append a raw file format twice', () => {
+        const file = {
+            publicId: 'transferx/uploads/test_file_12345.pdf',
+            resourceType: 'raw',
+            format: 'pdf',
+            originalName: 'document.pdf',
+        };
+
+        const { generateDownloadUrl } = require('../src/services/storage.service');
+        const url = generateDownloadUrl(file);
+
+        assert.ok(url.includes('/test_file_12345.pdf'));
+        assert.equal(url.includes('.pdf.pdf'), false);
+    });
 });
 
 // ═══════════════════════════════════════════════════════════════

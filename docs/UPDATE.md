@@ -13,12 +13,11 @@ Cloudinary download of uploaded files isn't working properly, especially with ra
 - **Issue**: The `format` field depends on what Cloudinary returns in the upload result. For raw files (PDF, ZIP), Cloudinary may not always populate the `format` field. If `uploadResult.format` is undefined, `file.format` will be `null`.
 - **Impact**: While the downstream `generateDownloadUrl` function handles `file.format === null` correctly (by omitting the format parameter for raw files), this creates uncertainty about whether Cloudinary properly identifies the file type during download.
 
-### **Bug 2: `format` parameter incorrectly omitted for raw files in download URL**
+### **Bug 2: `format` parameter duplicated for raw files in download URL**
 - **File**: `server/src/services/storage.service.js:70`
 - **Code**: `if (file.resourceType !== 'raw' && file.format)`
-- **Issue**: For raw files, the `format` parameter is **always** omitted from the Cloudinary URL options, regardless of whether `file.format` exists. The comment states "Raw files shouldn't have a format in the URL builder because it's baked into their publicId."
-- **Potential Problem**: This assumes the publicId's embedded extension will always be correctly interpreted by Cloudinary to determine the file type. If Cloudinary fails to detect the file type from the publicId extension alone, the download will fail or produce corrupted files.
-- **Risk**: Raw files (PDF, ZIP) might not download correctly if Cloudinary's default behavior doesn't properly infer the format from the publicId.
+- **Issue**: Raw files already include their extension in `publicId`. Passing `format` as a URL option makes Cloudinary append that extension a second time (for example, `document.pdf.pdf`), which results in an inaccessible download URL.
+- **Fix**: Only pass `format` for image/video assets, whose public IDs do not include an extension. Raw assets rely on the extension stored in `publicId`.
 
 ### **Bug 3: MIME type classification might not correctly identify all raw files**
 - **File**: `server/src/storage/cloudinaryStorage.js:10-14`
@@ -36,8 +35,7 @@ Cloudinary download of uploaded files isn't working properly, especially with ra
 - **File**: `server/src/services/storage.service.js:70`
 - **Code**: `if (file.resourceType !== 'raw' && file.format)`
 - **Issue**: Even if `file.format` is populated (e.g., `file.format = "pdf"`), it is **still ignored** for raw files because the condition `file.resourceType !== 'raw'` evaluates to `false`.
-- **Potential Problem**: If Cloudinary requires the `format` parameter for certain raw file types to properly generate download URLs, this code would silently omit it, causing download failures.
-- **Example**: A PDF upload might have `format: "pdf"` in the MongoDB document, but this value is ignored during URL generation.
+- **Resolution**: Ignoring `format` for raw files is intentional and prevents duplicate extensions.
 
 ### **Bug 5: Possible publicId extension format mismatch**
 - **File**: `server/src/storage/cloudinaryStorage.js:36-38`
@@ -61,38 +59,24 @@ Cloudinary download of uploaded files isn't working properly, especially with ra
 
 ## Root Cause Summary
 
-The primary issue appears to be the **unconditional omission of the `format` parameter for raw files** in `generateDownloadUrl`. While the intention is to rely on the publicId's embedded extension, this approach may fail in edge cases where:
-
-1. Cloudinary doesn't properly detect file type from publicId extension
-2. The extension format in publicId doesn't match Cloudinary's expectations
-3. Certain raw file types require explicit `format` parameter for correct download
-
-The secondary issue is the **`format` field not being reliably populated** during upload, creating uncertainty about whether the MongoDB document has the necessary metadata for proper URL generation.
+The primary issue was the **duplicate format suffix for raw files** in `generateDownloadUrl`. Cloudinary raw uploads already store the extension in `publicId`; adding `format` again generated paths such as `document.pdf.pdf`.
 
 ---
 
 ## Recommended Fixes
 
-1. **Modify `generateDownloadUrl`** to include `format` parameter for raw files when `file.format` is available:
+1. **Keep `generateDownloadUrl` from adding `format` to raw-file URLs**:
    ```javascript
    // Current (line 70-72):
    if (file.resourceType !== 'raw' && file.format) {
        options.format = file.format;
    }
    
-   // Suggested fix:
-   if (file.format) {
-       options.format = file.format;
-   }
    ```
-   This would include the format parameter for all file types, including raw files, if the format is known.
+   Raw public IDs already contain their extension.
 
-2. **Ensure `format` is populated during upload** by explicitly setting it based on the file extension if Cloudinary doesn't return it:
-   - In `file.service.js`, after uploading, set `format` based on `extension` field if `uploadResult.format` is null
-
-3. **Add validation/logging** to detect when download URLs fail for raw files, to help identify the exact cause in production.
-
-4. **Consider always including `format` parameter** for all file types in the download URL, since Cloudinary's `url()` function should handle it appropriately without causing transcoding issues for raw files.
+2. **Keep raw public IDs extension-qualified** during upload.
+3. **Keep regression coverage** ensuring a raw PDF URL never contains `.pdf.pdf`.
 
 ---
 

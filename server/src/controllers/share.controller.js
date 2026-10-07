@@ -3,6 +3,7 @@ const storageService = require('../services/storage.service');
 const passwordService = require('../services/password.service');
 const accessTokenService = require('../services/accessToken.service');
 const { sendSuccess } = require('../utils/response');
+const { Readable } = require('stream');
 
 /**
  * Shared rate-limit → validate → track sequence used by both downloadShare
@@ -193,9 +194,60 @@ const redirectDownload = async (req, res, next) => {
     }
 };
 
+/**
+ * GET /api/shares/:code/file
+ * Streams the Cloudinary asset through this API so clients download the file
+ * from TransferX instead of being redirected to the storage provider.
+ */
+const downloadFile = async (req, res, next) => {
+    try {
+        const { token, password } = req.query;
+        const ip = req.ip || 'unknown';
+        const userAgent = req.headers['user-agent'];
+        const shareCode = req.params.code;
+
+        const result = await resolveShareDownload({
+            shareCode,
+            ip,
+            userAgent,
+            password: password || null,
+            token,
+            validateOnly: false,
+        });
+
+        if (result.blocked) {
+            return res.status(429).json({ success: false, message: 'Too many failed attempts. Please try again later.' });
+        }
+        if (result.wrongPassword) {
+            return res.status(403).json({ success: false, message: result.message });
+        }
+
+        const file = result.file;
+        const downloadUrl = storageService.generateDownloadUrl(file);
+        const upstream = await fetch(downloadUrl);
+
+        if (!upstream.ok || !upstream.body) {
+            throw new Error(`Cloudinary file fetch failed with status ${upstream.status}`);
+        }
+
+        const filename = String(file.originalName || 'download')
+            .replace(/[\r\n"]/g, '_');
+        res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+        res.setHeader('Content-Type', file.mimeType || 'application/octet-stream');
+        if (upstream.headers.get('content-length')) {
+            res.setHeader('Content-Length', upstream.headers.get('content-length'));
+        }
+
+        return Readable.fromWeb(upstream.body).pipe(res);
+    } catch (error) {
+        next(error);
+    }
+};
+
 module.exports = {
     createShare,
     getShare,
     downloadShare,
     redirectDownload,
+    downloadFile,
 };

@@ -21,11 +21,11 @@ const generateDownloadUrl = (file) => {
         flags: 'attachment',
     };
 
-    // Pin the format whenever it's known, so Cloudinary doesn't transcode
-    // images/videos on download and raw files (PDF, ZIP, ...) get a reliable
-    // Content-Type instead of depending solely on the publicId's extension
-    // being correctly interpreted (see docs/UPDATE.md for the history here).
-    if (file.format) {
+    // Raw uploads include their extension in publicId (for example,
+    // "transferx/uploads/report_123.pdf"). Passing format as well makes
+    // Cloudinary append the extension a second time and produces a 404 URL.
+    // Image/video public IDs omit the extension, so preserve their format.
+    if (file.resourceType !== 'raw' && file.format) {
         options.format = file.format;
     }
 
@@ -33,4 +33,3 @@ const generateDownloadUrl = (file) => {
 };
 
 module.exports = { generateDownloadUrl };
-

@@ -20,5 +20,7 @@ router.get('/:code/download', validate(getShareSchema, 'params'), shareControlle
 // This is the preferred method for browsers — preserves correct MIME types
 router.get('/:code/redirect', validate(getShareSchema, 'params'), shareController.redirectDownload);
 
-module.exports = router;
+// GET /api/shares/:code/file - stream the file through TransferX
+router.get('/:code/file', validate(getShareSchema, 'params'), shareController.downloadFile);
 
+module.exports = router;

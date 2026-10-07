@@ -27,16 +27,24 @@ app.set('trust proxy', process.env.TRUST_PROXY || 1);
 app.use(helmet());
 
 // ─── CORS ────────────────────────────────────
+const getAllowedOrigins = () => {
+    const raw = process.env.CLIENT_URL || 'http://localhost:5173';
+    return raw
+        .split(',')
+        .map((url) => url.trim().replace(/\/+$/, ''))
+        .filter(Boolean);
+};
+
 app.use(
     cors({
         origin: (origin, callback) => {
-            // In development, allow all origins for cross-device testing.
-            // In production, restrict to the configured CLIENT_URL.
-            if (process.env.NODE_ENV !== 'production') {
+            // Allow requests with no origin (mobile apps, curl, etc.) or in development
+            if (!origin || process.env.NODE_ENV !== 'production') {
                 return callback(null, true);
             }
-            const allowed = process.env.CLIENT_URL || 'http://localhost:5173';
-            if (!origin || origin === allowed) {
+            const allowedOrigins = getAllowedOrigins();
+            const normalizedOrigin = origin.replace(/\/+$/, '');
+            if (allowedOrigins.includes(normalizedOrigin) || allowedOrigins.includes('*')) {
                 callback(null, true);
             } else {
                 callback(new Error(`CORS: Origin ${origin} not allowed`));

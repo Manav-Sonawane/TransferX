@@ -104,7 +104,7 @@ const getShare = async (req, res, next) => {
  */
 const downloadShare = async (req, res, next) => {
     try {
-        const { password } = req.body;
+        const password = req.body?.password || req.query?.password || null;
         const ip = req.ip || 'unknown';
         const userAgent = req.headers['user-agent'];
         const shareCode = req.params.code;
@@ -155,9 +155,8 @@ const downloadShare = async (req, res, next) => {
  * GET /api/shares/:code/redirect
  * Returns an HTTP 302 redirect directly to the Cloudinary URL.
  *
- * For password-protected shares, requires the `token` query param obtained
- * from POST /download — the plaintext password is never accepted here, since
- * this is a browser navigation and its URL can land in logs/history.
+ * For password-protected shares, accepts the `token` query param obtained
+ * from POST /download or direct `password` fallback query param.
  * For shares with no password, no token is needed.
  *
  * This is the preferred method for browsers — Cloudinary sends the correct
@@ -165,12 +164,12 @@ const downloadShare = async (req, res, next) => {
  */
 const redirectDownload = async (req, res, next) => {
     try {
-        const { token } = req.query;
+        const { token, password } = req.query;
         const ip = req.ip || 'unknown';
         const userAgent = req.headers['user-agent'];
         const shareCode = req.params.code;
 
-        const result = await resolveShareDownload({ shareCode, ip, userAgent, password: null, token, validateOnly: false });
+        const result = await resolveShareDownload({ shareCode, ip, userAgent, password: password || null, token, validateOnly: false });
 
         if (result.blocked) {
             return res.status(429).json({

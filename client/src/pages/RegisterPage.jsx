@@ -58,7 +58,9 @@ const RegisterPage = () => {
       toast.success('Account created! Welcome to TransferX 🎉');
       navigate('/dashboard', { replace: true });
     } catch (err) {
-      const msg = err?.response?.data?.message || 'Registration failed. Please try again.';
+      const isNetworkError = !err?.response && (err?.message === 'Network Error' || err?.code === 'ERR_NETWORK');
+      const msg = err?.response?.data?.message 
+        || (isNetworkError ? 'Cannot connect to server. Please check your network connection and backend API URL.' : 'Registration failed. Please try again.');
       const fieldErrors = err?.response?.data?.errors;
       if (fieldErrors) {
         const errs = {};

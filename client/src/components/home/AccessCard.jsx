@@ -49,27 +49,33 @@ const AccessCard = () => {
       return;
     }
 
+    setDownloading(true);
     const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
     try {
       if (shareData.hasPassword) {
-        // Validate password first to show any errors
-        const validationEndpoint = `${apiBase}/shares/${code}/download?password=${encodeURIComponent(password)}`;
+        // Step 1: Validate password via POST body
+        const validationEndpoint = `${apiBase}/shares/${code}/download`;
         const validationResponse = await fetch(validationEndpoint, {
-          method: 'GET',
+          method: 'POST',
           credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password }),
         });
 
+        const validationData = await validationResponse.json().catch(() => ({}));
+
         if (!validationResponse.ok) {
-          const errorData = await validationResponse.json().catch(() => ({}));
-          const remaining = errorData.attemptsRemaining;
-          const msg = errorData.message || `Error ${validationResponse.status}`;
+          const remaining = validationData.attemptsRemaining;
+          const msg = validationData.message || `Error ${validationResponse.status}`;
           throw new Error(remaining != null ? `${msg} (${remaining} attempt${remaining === 1 ? '' : 's'} remaining)` : msg);
         }
 
+        // Step 2: Password valid — exchange for short-lived access token
+        const accessToken = validationData?.data?.accessToken;
         toast.success('Password accepted! Starting download...');
         setDownloaded(true);
-        window.location.href = `${apiBase}/shares/${code}/redirect?password=${encodeURIComponent(password)}`;
+        window.location.href = `${apiBase}/shares/${code}/redirect?token=${encodeURIComponent(accessToken)}`;
       } else {
         toast.success('Download starting...');
         setDownloaded(true);
@@ -77,6 +83,8 @@ const AccessCard = () => {
       }
     } catch (err) {
       toast.error(err.message || 'Download failed. Please try again.');
+    } finally {
+      setDownloading(false);
     }
   };
 

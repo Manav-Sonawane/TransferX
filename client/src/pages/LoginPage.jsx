@@ -42,7 +42,9 @@ const LoginPage = () => {
       toast.success('Welcome back!');
       navigate(from, { replace: true });
     } catch (err) {
-      const msg = err?.response?.data?.message || 'Login failed. Please try again.';
+      const isNetworkError = !err?.response && (err?.message === 'Network Error' || err?.code === 'ERR_NETWORK');
+      const msg = err?.response?.data?.message 
+        || (isNetworkError ? 'Cannot connect to server. Please check your network connection and backend API URL.' : 'Login failed. Please try again.');
       toast.error(msg);
     } finally {
       setLoading(false);
